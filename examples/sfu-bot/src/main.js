@@ -18,21 +18,22 @@ const token = new SkyWayAuthToken({
   scope: {
     appId: appId,
     rooms: [
-    {
-      name: "*",
-      methods: ["create", "close", "updateMetadata"],
-      member: {
-        name: "*",
-        methods: ["publish", "subscribe", "updateMetadata"]
+      {
+        name: '*',
+        methods: ['create', 'close', 'updateMetadata'],
+        member: {
+          name: '*',
+          methods: ['publish', 'subscribe', 'updateMetadata'],
+        },
+        sfu: {
+          enabled: true,
+        },
       },
-      sfu: {
-        enabled: true
-      }
-    }],
+    ],
     turn: {
-      enabled: true
-    }
-  }
+      enabled: true,
+    },
+  },
 }).encode(secret);
 
 void (async () => {

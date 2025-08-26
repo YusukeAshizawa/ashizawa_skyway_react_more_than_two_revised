@@ -4,7 +4,7 @@ import {
   SkyWayContext,
   SkyWayRoom,
   SkyWayStreamFactory,
-  uuidV4
+  uuidV4,
 } from '@skyway-sdk/room';
 
 import { appId, secret } from '../../../env';
@@ -17,33 +17,32 @@ const token = new SkyWayAuthToken({
   scope: {
     appId: appId,
     rooms: [
-    {
-      name: "*",
-      methods: ["create", "close", "updateMetadata"],
-      member: {
-        name: "*",
-        methods: ["publish", "subscribe", "updateMetadata"]
-      }
-    }],
+      {
+        name: '*',
+        methods: ['create', 'close', 'updateMetadata'],
+        member: {
+          name: '*',
+          methods: ['publish', 'subscribe', 'updateMetadata'],
+        },
+      },
+    ],
     turn: {
-      enabled: true
-    }
-  }
+      enabled: true,
+    },
+  },
 }).encode(secret);
 
 void (async () => {
   const localVideo = document.getElementById('local-video');
   const buttonArea = document.getElementById('button-area');
   const remoteMediaArea = document.getElementById('remote-media-area');
-  const roomNameInput = document.getElementById(
-    'room-name'
-  );
+  const roomNameInput = document.getElementById('room-name');
   const myId = document.getElementById('my-id');
   const joinButton = document.getElementById('join');
   const leaveButton = document.getElementById('leave');
 
   const { audio, video } =
-  await SkyWayStreamFactory.createMicrophoneAudioAndCameraStream();
+    await SkyWayStreamFactory.createMicrophoneAudioAndCameraStream();
   video.attach(localVideo);
   await localVideo.play();
 
@@ -53,7 +52,7 @@ void (async () => {
     const context = await SkyWayContext.Create(token);
     const room = await SkyWayRoom.FindOrCreate(context, {
       type: 'p2p',
-      name: roomNameInput.value
+      name: roomNameInput.value,
     });
     const me = await room.join();
 
@@ -71,9 +70,7 @@ void (async () => {
       buttonArea.appendChild(subscribeButton);
 
       subscribeButton.onclick = async () => {
-        const { stream } = await me.subscribe(
-          publication.id
-        );
+        const { stream } = await me.subscribe(publication.id);
 
         let newMedia;
         switch (stream.track.kind) {

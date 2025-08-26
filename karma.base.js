@@ -56,9 +56,7 @@ module.exports = {
     },
     exclude: ['node_modules', 'example', 'examples', 'debug', 'typedoc', 'doc'],
     bundlerOptions: {
-      transforms: [
-        require('karma-typescript-es6-transform')()
-      ]
+      transforms: [require('karma-typescript-es6-transform')()],
     },
   },
 };
