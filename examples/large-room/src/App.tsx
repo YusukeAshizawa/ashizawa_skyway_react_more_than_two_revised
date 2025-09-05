@@ -3,11 +3,14 @@ import './App.css';
 
 import { Camera } from '@mediapipe/camera_utils';
 import { FaceMesh, Results } from '@mediapipe/face_mesh';
+// import { Camera } from '@mediapipe/camera_utils';
+// import { FaceMesh, Results } from '@mediapipe/face_mesh';
 import {
   LocalAudioStream,
   LocalDataStream,
+  // LocalDataStream,
   LocalP2PRoomMember,
-  LocalStream,
+  // LocalStream,
   LocalVideoStream,
   nowInSec,
   RemoteDataStream,
@@ -16,6 +19,7 @@ import {
   RoomSubscription,
   SkyWayAuthToken,
   SkyWayContext,
+  SkyWayError,
   SkyWayRoom,
   SkyWayStreamFactory,
   uuidV4,
@@ -27,14 +31,15 @@ import SpeechRecognition, {
 } from 'react-speech-recognition';
 import Webcam from 'react-webcam';
 
+// import Webcam from 'react-webcam';
 import { contextOptions, sfuOptions, tokenString } from './const';
 import { Video } from './Video'; // 修正されたVideoコンポーネント
 
 // --- Constant Valuale ---
 const AppConstants = {
   MOVING_AVERAGE_FRAME: 10, // 移動平均計算時のフレーム数
-  WIDTH_MAX: 1000, // ビデオウィンドウの大きさの最大値
-  WIDTH_MIN: 800, // ビデオウィンドウの大きさの最小値
+  WIDTH_MAX: 600, // ビデオウィンドウの大きさの最大値
+  WIDTH_MIN: 400, // ビデオウィンドウの大きさの最小値
   DISTANCE_RATE_MOVE: 10000, // 位置の移動を行う場合の，スクリーンの中心からのずれの拡大率
   DEFAULT_TOP_DIFF: 0, // 位置の移動を行う場合の，スクリーンの中心からの上下方向のずれ
   DEFAULT_LEFT_DIFF: 0, // 位置の移動を行う場合の，スクリーンの中心からの左右方向のずれ
@@ -132,10 +137,10 @@ const Utils = {
 
 // --- Global Variables（以下すべてuseStateで管理したいが，やり方が分かっていないので，保留） ---
 const participantID = 1; // 参加者ID
-const conditionID = 1; // 条件番号・条件名
+const conditionID = 2; // 条件番号・条件名
 const conditionName = 'Baseline'; // 条件名
 let startTime = 0; // 計測開始時間
-const scrollMyX = window.scrollX; // 自分自身（参加者側）のスクロール位置（X座標）
+// const scrollMyX = window.scrollX; // 自分自身（参加者側）のスクロール位置（X座標）
 const moveWidths: number[] = []; // ビデオウィンドウの大きさの移動平均を計算するためのリスト
 const moveBorderAlphas: number[] = []; // ビデオウィンドウの枠の色の透明度の移動平均を計算するためのリスト
 const isSpeaking = false; // 発話状態か否か
@@ -160,8 +165,8 @@ const App: FC = () => {
   ] = useState<WindowAndAudioAndParticipantsInfo>({
     topDiff: AppConstants.DEFAULT_TOP_DIFF,
     leftDiff: AppConstants.DEFAULT_LEFT_DIFF,
-    width: defaultWidth,
-    height: defaultWidth,
+    width: 500,
+    height: 500,
     borderRed: defaultBorderColor.r,
     borderGreen: defaultBorderColor.g,
     borderBlue: defaultBorderColor.b,
@@ -189,11 +194,11 @@ const App: FC = () => {
   const [nowTest, setNowTest] = useState<boolean>(false); // ウィンドウ情報収集中か否か
 
   // --- Refs ---
-  const localVideo = useRef<HTMLVideoElement>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserNodeRef = useRef<AnalyserNode | null>(null);
-  const dataArrayRef = useRef<Uint8Array | null>(null);
-  const audtioInputGainNodeRef = useRef<GainNode | null>(null); // オプション: マイク入力のゲイン調整用
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  // const audioContextRef = useRef<AudioContext | null>(null);
+  // const analyserNodeRef = useRef<AnalyserNode | null>(null);
+  // const dataArrayRef = useRef<Uint8Array | null>(null);
+  // const audtioInputGainNodeRef = useRef<GainNode | null>(null); // オプション: マイク入力のゲイン調整用
   const webcamRef = useRef<Webcam>(null); // Webcamの参照
   const audioContainer = useRef<HTMLDivElement>(null);
   const resultsRef = useRef<Results>(); // MediaPipeの検出結果を格納するための参照
@@ -202,15 +207,16 @@ const App: FC = () => {
   >(null); // CSVファイルのリンクを格納するための参照
 
   // --- Memos ---
-  // const myWindowAndAudioContainerStyle = useMemo<React.CSSProperties>(() => ({
-  //     position: 'absolute',
-  //     top: 0,
-  //     left: 0, // 右上の場合：0（右下の場合：window.innerWidth - AppConstants.DEFAULT_MY_WINDOW_WIDTH - 20）
-  //     width: AppConstants.DEFAULT_MY_WINDOW_WIDTH,
-  //     border: `10px solid rgba(${myWindowAndAudioAndParticipantsInfo.borderRed}, ${myWindowAndAudioAndParticipantsInfo.borderGreen}, ${myWindowAndAudioAndParticipantsInfo.borderBlue}, ${myWindowAndAudioAndParticipantsInfo.borderAlphaValueBasedVoice})`,
-  //   }),
-  //   [myWindowAndAudioAndParticipantsInfo]
-  // ); // 参加者側のビデオウィンドウのスタイル
+  const myWindowAndAudioContainerStyle = useMemo<React.CSSProperties>(
+    () => ({
+      position: 'absolute',
+      top: 50, // 文字入力欄に被らないように調整
+      left: 0, // 右上の場合：0（右下の場合：window.innerWidth - AppConstants.DEFAULT_MY_WINDOW_WIDTH - 20）
+      width: AppConstants.DEFAULT_MY_WINDOW_WIDTH,
+      border: `10px solid rgba(${myWindowAndAudioAndParticipantsInfo.borderRed}, ${myWindowAndAudioAndParticipantsInfo.borderGreen}, ${myWindowAndAudioAndParticipantsInfo.borderBlue}, ${myWindowAndAudioAndParticipantsInfo.borderAlphaValueBasedVoice})`,
+    }),
+    [myWindowAndAudioAndParticipantsInfo]
+  ); // 参加者側のビデオウィンドウのスタイル
   // const otherUserWindowAndAudioContainerStyle = useMemo<React.CSSProperties>(() => ({
   //     position: 'absolute',
   //     // 画面の上側にはみ出る場合には，画面上端に位置調整・画面の下側にはみ出る場合には，画面下端に位置調整
@@ -586,9 +592,12 @@ const App: FC = () => {
       await SkyWayStreamFactory.createMicrophoneAudioAndCameraStream({
         video: { frameRate: 15 },
       });
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    stream.video.attach(localVideoRef.current!);
     const dataStream = await SkyWayStreamFactory.createDataStream();
     setLocalStream(stream);
     setLocalDataStream(dataStream);
+    await localVideoRef.current?.play();
 
     // SFUに合わせた公開
     await member.publish(stream.audio, { maxSubscribers: 50 });
@@ -599,7 +608,11 @@ const App: FC = () => {
         { scaleResolutionDownBy: 1, id: 'high', maxBitrate: 400_000 },
       ],
     });
-    await member.publish(dataStream);
+    if (dataStream !== undefined) {
+      // eslint-disable-next-line
+      console.log("published data stream"); // デバッグ用
+      await member.publish(dataStream);
+    }
 
     // 他の参加者のストリームを購読
     member.onPublicationSubscribed.add((e) => {
@@ -615,6 +628,15 @@ const App: FC = () => {
         });
       }
     });
+    // ルームに参加した後にリスナーを設定
+    member.onPublicationUnsubscribed.add((e) => {
+      // 購読しようとしていたストリームがキャンセルされた場合，関連する状態（remoteDataStreams）をクリーンアップする
+      setRemoteDataStreams((prev) => {
+        const newMap = new Map(prev);
+        newMap.delete(e.subscription.id);
+        return newMap;
+      });
+    });
 
     // 映像ストリームの購読リストの更新
     member.onSubscriptionListChanged.add(() => {
@@ -626,31 +648,84 @@ const App: FC = () => {
       );
     });
 
-    // 外部のデータストリームを受信・処理
-    const subscribe = async (publication: RoomPublication) => {
-      if (publication.publisher.id !== member.id) {
-        if (publication.contentType === 'data') {
-          const { stream } = await member.subscribe(publication);
+    // // 外部のデータストリームを受信・処理
+    // const subscribe = async (publication: RoomPublication) => {
+    //   if (publication.publisher.id !== member.id) {
+    //     if (publication.contentType === 'data') {
+    //       const { stream } = await member.subscribe(publication);
+    //       if (stream.contentType === 'data') {
+    //         setRemoteDataStreams((prev) =>
+    //           new Map(prev).set(publication.publisher.id, stream)
+    //         );
+    //       }
+    //     }
+    //     if (publication.contentType === 'video') {
+    //       await member.subscribe(publication, {
+    //         preferredEncodingId: 'low',
+    //       });
+    //     } else {
+    //       await member.subscribe(publication);
+    //     }
+    //   }
+    // };
+    // SFUの場合
+    // room.onStreamPublished.add(async (e) => {
+    //   if (e.publication.publisher.id !== member.id) {
+    //     await subscribe(e.publication);
+    //   }
+    // });
+    // P2Pの場合，dataストリーム以外は自動購読されるため，dataストリームのみを購読する
+    room.onStreamPublished.add(async (e) => {
+      if (
+        e.publication.publisher.id !== member.id
+        // e.publication.publisher.id !== member.id &&
+        // e.publication.contentType === 'data'
+      ) {
+        try {
+          // Subscribeの前に，すでに購読済みでないかを確認するロジックを追加することも有効
+          // ただし，このイベントは新規公開時のみ発火するため，新しいデータストリームを購読するだけであれば問題ない
+          const { stream } = await member.subscribe(e.publication);
           if (stream.contentType === 'data') {
             setRemoteDataStreams((prev) =>
-              new Map(prev).set(publication.publisher.id, stream)
+              new Map(prev).set(e.publication.publisher.id, stream)
+            );
+          }
+        } catch (error) {
+          console.log('Failed to subscribe to data stream:', error);
+          // エラーメッセージから原因を特定し，無視するなどの対応が可能
+          if (error instanceof SkyWayError && error.name === 'internal') {
+            console.log(
+              'Publisher already left the room, ignoring subscription.'
             );
           }
         }
-        if (publication.contentType === 'video') {
-          await member.subscribe(publication, {
-            preferredEncodingId: 'low',
-          });
-        } else {
-          await member.subscribe(publication);
-        }
       }
-    };
-    room.onStreamPublished.add(async (e) => {
-      await subscribe(e.publication);
     });
-    // 既に公開されているストリームを購読
-    await Promise.all(room.publications.map(subscribe));
+    // 既に公開されているストリームを購読（SFUでは全てのストリームを手動で購読する必要がある）
+    // await Promise.all(room.publications.map(subscribe));
+
+    // 既に公開されているストリームを購読（P2Pの場合）
+    await Promise.all(
+      room.publications
+        // // データストリームのみをフィルタリング
+        // .filter((publication) => publication.contentType === 'data')
+        // 自分の公開ストリームを除外する
+        .filter((publication) => publication.publisher.id !== member.id)
+        .map(async (publication) => {
+          try {
+            // データストリームのみ後続する
+            const { stream } = await member.subscribe(publication);
+            if (stream.contentType === 'data') {
+              // 受信したデータストリームを処理
+              setRemoteDataStreams((prev) =>
+                new Map(prev).set(publication.publisher.id, stream)
+              );
+            }
+          } catch (error) {
+            console.error('Failed to subscribe:', error);
+          }
+        })
+    );
   };
 
   // --- Effects ---
@@ -658,6 +733,8 @@ const App: FC = () => {
   useEffect(() => {
     remoteDataStreams.forEach((stream, id) => {
       stream.onData.add((args) => {
+        // eslint-disable-next-line
+        console.log("Receiving Data from", id, ":", args);
         setRemoteParticipantsInfo((prev) => {
           const newMap = new Map(prev);
           newMap.set(id, args as WindowAndAudioAndParticipantsInfo);
@@ -669,16 +746,59 @@ const App: FC = () => {
   // 自分の頭部方向を計算した後に，定期的にデータを送信するuseEffect
   useEffect(() => {
     if (localDataStream) {
-      localDataStream.write(myWindowAndAudioAndParticipantsInfo);
       // eslint-disable-next-line
-      console.log("自分のデータを送信しました！");  // デバッグ用
+      console.log('Sending Data:', myWindowAndAudioAndParticipantsInfo); // デバッグ用
+      localDataStream.write(myWindowAndAudioAndParticipantsInfo);
     }
-  }, [localDataStream]);
+  }, [localDataStream, myWindowAndAudioAndParticipantsInfo]);
+  useEffect(() => {
+    // MediaPipe側の初期設定
+    const faceMesh = new FaceMesh({
+      locateFile: (file) => {
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
+      },
+    });
+    faceMesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: true, // landmarks 468 -> 478
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5,
+    });
+    faceMesh.onResults(onResults);
+
+    // MediaPipeの顔検出用のカメラ検出
+    if (localVideoRef.current && webcamRef.current?.video) {
+      const camera = new Camera(webcamRef.current!.video!, {
+        onFrame: async () => {
+          await faceMesh.send({ image: webcamRef.current!.video! });
+        },
+      });
+      camera.start();
+    }
+
+    return () => {
+      faceMesh.close();
+    };
+  }, [onResults]); // MediaPipeの顔検出の準備
 
   return (
     <div>
       <input onChange={(e) => setRoomName(e.target.value)} value={roomName} />
       <button onClick={main}>join</button>
+      <video
+        id="local-video"
+        ref={localVideoRef}
+        muted
+        playsInline
+        style={myWindowAndAudioContainerStyle}
+      ></video>
+      <Webcam
+        id="local-video-webcam"
+        ref={webcamRef}
+        muted
+        playsInline
+        style={myWindowAndAudioContainerStyle}
+      />
       <div style={{ display: 'flex', flexWrap: 'wrap' }}>
         {videoSubscriptions.map((subscription) => (
           <Video
@@ -687,10 +807,19 @@ const App: FC = () => {
             windowInfo={remoteParticipantsInfo.get(
               subscription.publication.publisher.id
             )}
+            participantNum={videoSubscriptions.indexOf(subscription) + 1}
+            // me={me}
+            // isMe={subscription.publication.publisher.id === me?.id}
+            // conditionID={conditionID}
           />
         ))}
       </div>
       <div ref={audioContainer} />
+      <CSVLink
+        data={headDirectionResults}
+        filename={`C${conditionID}_ID${participantID}_headDirectionResults.csv`}
+        ref={CSV_Ref}
+      ></CSVLink>
     </div>
   );
 };
