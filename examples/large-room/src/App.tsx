@@ -3,8 +3,6 @@ import './App.css';
 
 import { Camera } from '@mediapipe/camera_utils';
 import { FaceMesh, Results } from '@mediapipe/face_mesh';
-// import { Camera } from '@mediapipe/camera_utils';
-// import { FaceMesh, Results } from '@mediapipe/face_mesh';
 import {
   LocalAudioStream,
   LocalDataStream,
@@ -38,8 +36,8 @@ import { Video } from './Video'; // 修正されたVideoコンポーネント
 // --- Constant Valuale ---
 const AppConstants = {
   MOVING_AVERAGE_FRAME: 10, // 移動平均計算時のフレーム数
-  WIDTH_MAX: 600, // ビデオウィンドウの大きさの最大値
-  WIDTH_MIN: 400, // ビデオウィンドウの大きさの最小値
+  WIDTH_MAX: 400, // ビデオウィンドウの大きさの最大値
+  WIDTH_MIN: 200, // ビデオウィンドウの大きさの最小値
   DISTANCE_RATE_MOVE: 10000, // 位置の移動を行う場合の，スクリーンの中心からのずれの拡大率
   DEFAULT_TOP_DIFF: 0, // 位置の移動を行う場合の，スクリーンの中心からの上下方向のずれ
   DEFAULT_LEFT_DIFF: 0, // 位置の移動を行う場合の，スクリーンの中心からの左右方向のずれ
@@ -86,12 +84,6 @@ interface CSV_HeadDirection_Info {
   myStatusGaze: string;
   myIsSpeaking: boolean;
   myTranscript: string;
-  otherTheta: number;
-  otherDirection: string;
-  otherWindowWidth: number;
-  otherStatusGaze: string;
-  otherIsSpeaking: boolean;
-  otherTranscript: string;
 } // CSVファイルに書き出す頭部方向の情報
 
 // --- Utility Functions ---
@@ -136,9 +128,9 @@ const Utils = {
 };
 
 // --- Global Variables（以下すべてuseStateで管理したいが，やり方が分かっていないので，保留） ---
-const participantID = 1; // 参加者ID
-const conditionID = 2; // 条件番号・条件名
-const conditionName = 'Baseline'; // 条件名
+let participantID = 1; // 参加者ID
+let conditionID = 1; // 条件番号・条件名
+let conditionName = 'Baseline'; // 条件名
 let startTime = 0; // 計測開始時間
 // const scrollMyX = window.scrollX; // 自分自身（参加者側）のスクロール位置（X座標）
 const moveWidths: number[] = []; // ビデオウィンドウの大きさの移動平均を計算するためのリスト
@@ -165,8 +157,8 @@ const App: FC = () => {
   ] = useState<WindowAndAudioAndParticipantsInfo>({
     topDiff: AppConstants.DEFAULT_TOP_DIFF,
     leftDiff: AppConstants.DEFAULT_LEFT_DIFF,
-    width: 500,
-    height: 500,
+    width: 300,
+    height: 300,
     borderRed: defaultBorderColor.r,
     borderGreen: defaultBorderColor.g,
     borderBlue: defaultBorderColor.b,
@@ -217,62 +209,6 @@ const App: FC = () => {
     }),
     [myWindowAndAudioAndParticipantsInfo]
   ); // 参加者側のビデオウィンドウのスタイル
-  // const otherUserWindowAndAudioContainerStyle = useMemo<React.CSSProperties>(() => ({
-  //     position: 'absolute',
-  //     // 画面の上側にはみ出る場合には，画面上端に位置調整・画面の下側にはみ出る場合には，画面下端に位置調整
-  //     top:
-  //       0 +
-  //         window.screen.height / 2 -
-  //         otherUserWindowAndAudioAndParticipantsInfo.height / 2 +
-  //         otherUserWindowAndAudioAndParticipantsInfo.topDiff <
-  //       0
-  //         ? 0
-  //         : 0 +
-  //             window.screen.height / 2 -
-  //             otherUserWindowAndAudioAndParticipantsInfo.height / 2 +
-  //             otherUserWindowAndAudioAndParticipantsInfo.topDiff >
-  //           0 +
-  //             window.screen.height -
-  //             otherUserWindowAndAudioAndParticipantsInfo.height
-  //         ? 0 +
-  //           window.screen.height -
-  //           otherUserWindowAndAudioAndParticipantsInfo.height
-  //         : 0 +
-  //           window.screen.height / 2 -
-  //           otherUserWindowAndAudioAndParticipantsInfo.height / 2 +
-  //           otherUserWindowAndAudioAndParticipantsInfo.topDiff,
-  //     // 画面の左側にはみ出る場合には，画面左端に位置調整・画面の右側にはみ出る場合には，画面右端に位置調整
-  //     left:
-  //       window.screenLeft +
-  //         scrollMyX +
-  //         window.screen.width / 2 -
-  //         otherUserWindowAndAudioAndParticipantsInfo.width / 2 +
-  //         otherUserWindowAndAudioAndParticipantsInfo.leftDiff <
-  //       0
-  //         ? 0
-  //         : window.screenLeft +
-  //             scrollMyX +
-  //             window.screen.width / 2 -
-  //             otherUserWindowAndAudioAndParticipantsInfo.width / 2 +
-  //             otherUserWindowAndAudioAndParticipantsInfo.leftDiff >
-  //           window.screenLeft +
-  //             scrollMyX +
-  //             window.screen.width -
-  //             otherUserWindowAndAudioAndParticipantsInfo.width
-  //         ? window.screenLeft +
-  //           scrollMyX +
-  //           window.screen.width -
-  //           otherUserWindowAndAudioAndParticipantsInfo.width
-  //         : window.screenLeft +
-  //           scrollMyX +
-  //           window.screen.width / 2 -
-  //           otherUserWindowAndAudioAndParticipantsInfo.width / 2 +
-  //           otherUserWindowAndAudioAndParticipantsInfo.leftDiff,
-  //     width: otherUserWindowAndAudioAndParticipantsInfo.width,
-  //     border: `10px solid rgba(${otherUserWindowAndAudioAndParticipantsInfo.borderRed}, ${otherUserWindowAndAudioAndParticipantsInfo.borderGreen}, ${otherUserWindowAndAudioAndParticipantsInfo.borderBlue}, ${otherUserWindowAndAudioAndParticipantsInfo.borderAlpha})`,
-  //   }),
-  //   [otherUserWindowAndAudioAndParticipantsInfo]
-  // ); // 会話相手側のビデオウィンドウのスタイル
 
   // --- Callbacks ---
   // ビデオウィンドウのInfoの更新+音声データの追加
@@ -560,12 +496,12 @@ const App: FC = () => {
         myStatusGaze: '',
         myIsSpeaking: false,
         myTranscript: '',
-        otherTheta: 0,
-        otherDirection: '',
-        otherWindowWidth: 0,
-        otherStatusGaze: '',
-        otherIsSpeaking: false,
-        otherTranscript: '',
+        // otherTheta: 0,
+        // otherDirection: '',
+        // otherWindowWidth: 0,
+        // otherStatusGaze: '',
+        // otherIsSpeaking: false,
+        // otherTranscript: '',
       },
     ]);
     setStartTime_HeadDirection(0);
@@ -704,6 +640,14 @@ const App: FC = () => {
     // 既に公開されているストリームを購読（SFUでは全てのストリームを手動で購読する必要がある）
     // await Promise.all(room.publications.map(subscribe));
 
+    // 部屋名のみを表示させる
+    document
+      .getElementById('active-after-conference')
+      ?.classList.remove('non-active');
+    document
+      .getElementById('active-before-conference')
+      ?.classList.add('non-active');
+
     // 既に公開されているストリームを購読（P2Pの場合）
     await Promise.all(
       room.publications
@@ -780,11 +724,171 @@ const App: FC = () => {
       faceMesh.close();
     };
   }, [onResults]); // MediaPipeの顔検出の準備
+  useEffect(() => {
+    if (localDataStream && remoteDataStreams) {
+      if (nowTest) {
+        // 自分自身のウィンドウ情報を追加
+        const nowTime_HeadDirection = (performance.now() - startTime) / 1000;
+        const currentEntry: CSV_HeadDirection_Info = {
+          ID: participantID,
+          condition: conditionID,
+          startTime: startTime_HeadDirection,
+          endTime: nowTime_HeadDirection,
+          myTheta: myWindowAndAudioAndParticipantsInfo.theta,
+          myDirection: Utils.getParticipantDirection(
+            myWindowAndAudioAndParticipantsInfo.theta
+          ),
+          myWindowWidth:
+            myWindowAndAudioAndParticipantsInfo.widthInCaseOfChange,
+          myStatusGaze: myWindowAndAudioAndParticipantsInfo.gazeStatus,
+          myIsSpeaking: myWindowAndAudioAndParticipantsInfo.isSpeaking,
+          myTranscript: myWindowAndAudioAndParticipantsInfo.transcript,
+          // otherTheta: 0,
+          // otherDirection: '',
+          // otherWindowWidth: 0,
+          // otherStatusGaze: '',
+          // otherIsSpeaking: false,
+          // otherTranscript: '',
+        };
+
+        setHeadDirectionResults((prev) => [...prev, currentEntry]);
+
+        // 各リモートユーザのデータを追加
+        // let userIndex = 1;
+        // remoteDataStreams.forEach((stream, memberID) => {
+        //   const remoteUserLatestInfo = (stream as any)._latestData as
+        //     | WindowAndAudioAndParticipantsInfo
+        //     | undefined; // _latestDataは内部プロパティ
+        //   if (remoteUserLatestInfo) {
+        //     currentEntry[`ID`] = userIndex + 1;
+        //     currentEntry[`myTheta`] = remoteUserLatestInfo.theta;
+        //     currentEntry[`myDirection`] = Utils.getParticipantDirection(
+        //       remoteUserLatestInfo.theta
+        //     );
+        //     currentEntry[`myWindowWidth`] =
+        //       remoteUserLatestInfo.widthInCaseOfChange;
+        //     currentEntry[`myStatusGaze`] = remoteUserLatestInfo.gazeStatus;
+        //     currentEntry[`myIsSpeaking`] = remoteUserLatestInfo.isSpeaking;
+        //     currentEntry[`myTranscript`] = remoteUserLatestInfo.transcript;
+        //     setHeadDirectionResults((prev) => [...prev, currentEntry]);
+        //   }
+        //   userIndex++;
+        // });
+        // setHeadDirectionResults((prev) => [
+        //   ...prev,
+        //   { ID: participantID, condition: conditionID,
+        //     startTime: startTime_HeadDirection, endTime: nowTime_HeadDirection,
+        //     myTheta: myWindowAndAudioAndParticipantsInfo.theta, myDirection: Utils.getParticipantDirection(myWindowAndAudioAndParticipantsInfo.theta),
+        //     myWindowWidth: myWindowAndAudioAndParticipantsInfo.widthInCaseOfChange, myStatusGaze: myWindowAndAudioAndParticipantsInfo.gazeStatus,
+        //     myIsSpeaking: myWindowAndAudioAndParticipantsInfo.isSpeaking, myTranscript: myWindowAndAudioAndParticipantsInfo.transcript,
+        //     otherTheta: otherUserWindowAndAudioAndParticipantsInfo.theta, otherDirection: Utils.getParticipantDirection(otherUserWindowAndAudioAndParticipantsInfo.theta),
+        //     otherWindowWidth: otherUserWindowAndAudioAndParticipantsInfo.widthInCaseOfChange, otherStatusGaze: otherUserWindowAndAudioAndParticipantsInfo.gazeStatus,
+        //     otherIsSpeaking: otherUserWindowAndAudioAndParticipantsInfo.isSpeaking, otherTranscript: otherUserWindowAndAudioAndParticipantsInfo.transcript
+        //   }
+        // ]);
+        setStartTime_HeadDirection(nowTime_HeadDirection); // 計測開始時間を更新
+      }
+    }
+  }, [
+    nowTest,
+    startTime_HeadDirection,
+    myWindowAndAudioAndParticipantsInfo,
+    remoteDataStreams,
+  ]); // CSVファイルへの頭部方向・音声データの書き出し
 
   return (
     <div>
-      <input onChange={(e) => setRoomName(e.target.value)} value={roomName} />
-      <button onClick={main}>join</button>
+      <div id="active-before-conference">
+        <p>
+          Your ID:
+          <select
+            id="ID"
+            onChange={(event) => {
+              participantID = Number(event.target.value);
+            }}
+          >
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+            <option value="9">9</option>
+            <option value="10">10</option>
+            <option value="11">11</option>
+            <option value="12">12</option>
+            <option value="13">13</option>
+            <option value="14">14</option>
+            <option value="15">15</option>
+            <option value="16">16</option>
+            <option value="17">17</option>
+            <option value="18">18</option>
+            <option value="19">19</option>
+            <option value="20">20</option>
+          </select>
+          &nbsp;&nbsp; condition=
+          <select
+            id="condition"
+            onChange={(event) => {
+              conditionID = Number(event.target.value);
+              switch (conditionID) {
+                case 1:
+                  conditionName = 'Baseline';
+                  break;
+                case 2:
+                  conditionName = 'FrameChange';
+                  break;
+                case 3:
+                  conditionName = 'SizeChange';
+                  break;
+                case 4:
+                  conditionName = 'SizeChange_Discrete';
+                  break;
+                case 5:
+                  conditionName = 'PositionChange';
+                  break;
+                case 6:
+                  conditionName = 'PositionAndSizeChange';
+                  break;
+                default:
+                  conditionName = '';
+                  break;
+              }
+            }}
+          >
+            <option value="1">Baseline</option>
+            <option value="2">FrameChange</option>
+            <option value="3">SizeChange</option>
+            <option value="4">SizeChange_Discrete</option>
+            {/* <option value="5">PositionChange</option> */}
+            {/* <option value="6">PositionAndSizeChange</option> */}
+          </select>
+          &nbsp;&nbsp; room name:{' '}
+          <input
+            type="text"
+            value={roomName}
+            onChange={(e) => {
+              setRoomName(e.target.value);
+            }}
+          />
+          &nbsp;
+          <button onClick={main}>join</button>
+        </p>
+      </div>
+      <div id="active-after-conference" className="non-active">
+        ID: {participantID} &nbsp;&nbsp; condition: {conditionName} &nbsp;&nbsp;
+        room name: {roomName}
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+        <button onClick={testStart} disabled={nowTest}>
+          Measurement Start
+        </button>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+        <button onClick={testEnd} disabled={!nowTest}>
+          Measurement End
+        </button>
+      </div>
       <video
         id="local-video"
         ref={localVideoRef}
@@ -807,7 +911,9 @@ const App: FC = () => {
             windowInfo={remoteParticipantsInfo.get(
               subscription.publication.publisher.id
             )}
-            participantNum={videoSubscriptions.indexOf(subscription) + 1}
+            participantNum={videoSubscriptions.indexOf(subscription)}
+            participantAllNums={videoSubscriptions.length}
+            windowMax={AppConstants.WIDTH_MAX}
             // me={me}
             // isMe={subscription.publication.publisher.id === me?.id}
             // conditionID={conditionID}
