@@ -2,7 +2,13 @@
 import './App.css';
 
 import { Camera } from '@mediapipe/camera_utils';
-import { FaceMesh, Results } from '@mediapipe/face_mesh';
+// import { FaceMesh, Results } from '@mediapipe/face_mesh';
+import * as mpFaceMesh from '@mediapipe/face_mesh';
+import {
+  FaceLandmarker,
+  FaceLandmarkerResult,
+  FilesetResolver,
+} from '@mediapipe/tasks-vision';
 import {
   LocalAudioStream,
   LocalDataStream,
@@ -193,7 +199,7 @@ const App: FC = () => {
   // const audtioInputGainNodeRef = useRef<GainNode | null>(null); // オプション: マイク入力のゲイン調整用
   const webcamRef = useRef<Webcam>(null); // Webcamの参照
   const audioContainer = useRef<HTMLDivElement>(null);
-  const resultsRef = useRef<Results>(); // MediaPipeの検出結果を格納するための参照
+  const resultsRef = useRef<mpFaceMesh.Results>(); // MediaPipeの検出結果を格納するための参照
   const CSV_Ref = useRef<
     CSVLink & HTMLAnchorElement & { link: HTMLAnchorElement }
   >(null); // CSVファイルのリンクを格納するための参照
@@ -403,7 +409,7 @@ const App: FC = () => {
     },
     []
   );
-  const onResults = useCallback((results: Results) => {
+  const onResults = useCallback((results: mpFaceMesh.Results) => {
     // 顔の座標が正しく取得できている時のみ実行
     if (results.multiFaceLandmarks.length > 0) {
       // 検出結果の格納
@@ -482,6 +488,81 @@ const App: FC = () => {
       );
     }
   }, []); // MediaPipeによる顔検出 & 頭部方向の計算
+  const onResults_new = useCallback((results: FaceLandmarkerResult) => {
+    // 顔の座標が正しく取得できている時のみ実行
+    if (results.faceLandmarks.length > 0) {
+      // // 検出結果の格納
+      // resultsRef_new.current = results;
+
+      // 頭部方向の取得
+      const landmarks_pos_x: number[] = []; // 468個の点のx座標を格納するリスト
+      const landmarks_pos_y: number[] = []; // 468個の点のy座標を格納するリスト
+      const face_center_default_pos: number[] = []; // 正面を向いた時の顔の中心点（ここでは，飯塚さんの修論に倣って，鼻の先の座標としている．）
+      if (results.faceLandmarks && results.faceLandmarks[0]) {
+        for (let id = 0; id < results.faceLandmarks[0].length; id++) {
+          // 特定の顔の点を取得（x座標）
+          if (results.faceLandmarks[0][id].x < 0) landmarks_pos_x.push(0);
+          else if (results.faceLandmarks[0][id].x > 1) landmarks_pos_x.push(1);
+          else landmarks_pos_x.push(results.faceLandmarks[0][id].x);
+
+          // 特定の顔の点を取得（y座標）
+          if (results.faceLandmarks[0][id].y < 0) landmarks_pos_y.push(0);
+          else if (results.faceLandmarks[0][id].y > 1) landmarks_pos_y.push(1);
+          else landmarks_pos_y.push(results.faceLandmarks[0][id].y);
+
+          // 正面を向いた時の顔の中心点を取得（x，y座標）
+          if (id === 1) {
+            // x座標
+            if (results.faceLandmarks[0][id].x < 0)
+              face_center_default_pos.push(0);
+            else if (results.faceLandmarks[0][id].x > 1)
+              face_center_default_pos.push(1);
+            else face_center_default_pos.push(results.faceLandmarks[0][id].x);
+
+            // y座標
+            if (results.faceLandmarks[0][id].y < 0)
+              face_center_default_pos.push(0);
+            else if (results.faceLandmarks[0][id].y > 1)
+              face_center_default_pos.push(1);
+            else face_center_default_pos.push(results.faceLandmarks[0][id].y);
+          }
+        }
+      }
+      // 顔の中心点の座標
+      const face_center_pos = [
+        Utils.averageValue(landmarks_pos_x),
+        Utils.averageValue(landmarks_pos_y),
+      ];
+      const base_vector = [1, 0]; // 頭部方向を計算するためのベクトル
+      const fc_d_from_fc_vector = [
+        face_center_default_pos[0] - face_center_pos[0],
+        face_center_default_pos[1] - face_center_pos[1],
+      ]; // 顔の中心点を原点とした時の，正面を向いた際の顔の中心点のベクトル
+      let rad_head_direction = Math.acos(
+        Utils.inner(base_vector, fc_d_from_fc_vector) /
+          (Utils.norm(base_vector) * Utils.norm(fc_d_from_fc_vector))
+      ); // 頭部方向（ラジアン）
+      let theta_head_direction = rad_head_direction * (180 / Math.PI); // 頭部方向（度）
+      // arccosの値域が0～πであるため，上下の区別をするために，上を向いている時には，ラジアンおよび度の値を更新する
+      if (fc_d_from_fc_vector[1] < 0) {
+        rad_head_direction = -rad_head_direction;
+        theta_head_direction = 360 - theta_head_direction;
+      }
+
+      // 自分自身のビデオウィンドウの情報を更新
+      setMyWindowAndAudioAndParticipantsInfo(() =>
+        updateWindowInfo(
+          conditionID,
+          fc_d_from_fc_vector,
+          rad_head_direction,
+          theta_head_direction,
+          borderAlphaValueBasedVoice,
+          isSpeaking,
+          isSpeaking ? transcript : ''
+        )
+      );
+    }
+  }, []); // MediaPipe（new version）による顔検出 & 頭部方向の計算
   const testStart = useCallback(() => {
     // 頭部方向の書き出し開始
     setHeadDirectionResults([
@@ -696,8 +777,44 @@ const App: FC = () => {
     }
   }, [localDataStream, myWindowAndAudioAndParticipantsInfo]);
   useEffect(() => {
-    // MediaPipe側の初期設定
-    const faceMesh = new FaceMesh({
+    // let landmarker: FaceLandmarker | undefined;
+
+    // // MediaPipe側の初期設定（tasks-vision利用）
+    // const mediaPipeInit = async () => {
+    //   // Wasm バンドルの読み込み
+    //   const vision = await FilesetResolver.forVisionTasks(
+    //     'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm'
+    //   );
+
+    //   // PoseLandmarker 初期化
+    //   landmarker = await FaceLandmarker.createFromOptions(vision, {
+    //     baseOptions: {
+    //       modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
+    //       delegate: 'GPU', // GPU 利用。CPU しかない環境でも自動フォールバック
+    //     },
+    //     outputFaceBlendshapes: true,
+    //     runningMode: 'VIDEO',
+    //   });
+
+    //   // 推定ループ
+    //   const mediaPipeDetect = () => {
+    //     if (!localVideoRef.current || !webcamRef.current || !landmarker) return;
+
+    //     const ts = performance.now();
+    //     const res = landmarker.detectForVideo(webcamRef.current!.video!, ts);
+    //     if (res.faceLandmarks.length) {
+    //       onResults_new(res);
+    //     }
+    //     requestAnimationFrame(mediaPipeDetect);
+    //   };
+    //   mediaPipeDetect();
+    // };
+
+    // mediaPipeInit();
+
+    // MediaPipe側の初期設定（FaceMeshコンストラクタ利用）
+    const faceMesh = new mpFaceMesh.FaceMesh({
+      // ここをCDNに完全固定
       locateFile: (file) => {
         return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
       },
@@ -722,6 +839,7 @@ const App: FC = () => {
 
     return () => {
       faceMesh.close();
+      // landmarker?.close();
     };
   }, [onResults]); // MediaPipeの顔検出の準備
   useEffect(() => {
