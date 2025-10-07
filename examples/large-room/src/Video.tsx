@@ -63,24 +63,42 @@ export const Video: FC<{
 
     // eslint-disable-next-line
     // console.log("participantNum:" + participantNum); // デバッグ用
+    console.log('participantAllNums = ' + participantAllNums);
 
     // windowInfoから動的にスタイル生成
     return {
       position: 'absolute',
       width: windowInfo?.width,
+      height: windowInfo.height,
       top: `${
         0 +
-        window.screen.height / 2 -
+        // window.screen.height / 2 - // ウィンドウを中央揃えにする
+        // ↓：Zoom のギャラリービュー風レイアウト（participantNumは1から，participantNumの1番には自分自身の映るカメラが対応している）
+        window.screen.height *
+          (participantNum % 2 === 1
+            ? participantNum /
+              (1 + Math.floor((participantAllNums - 1) / 2)) /
+              2
+            : (participantNum - 1) /
+              (1 + Math.floor((participantAllNums - 1) / 2)) /
+              2) -
         windowInfo.height / 2 +
         windowInfo.topDiff
       }px`,
       left: `${
         window.screenLeft +
         scrollMyX +
-        window.screen.width / 2 -
+        // window.screen.width / 2 - // ウィンドウを中央揃えにする
+        // ↓：Zoom のギャラリービュー風レイアウト（participantNumは1から，participantNumの1番には自分自身の映るカメラが対応している）
+        (participantAllNums % 2 === 1 && participantNum === participantAllNums
+          ? window.screen.width / 2
+          : participantNum % 2 === 1
+          ? window.screen.width / 4
+          : (window.screen.width * 3) / 4) -
         windowInfo.width / 2 +
         windowInfo.leftDiff +
-        (windowMax + 50) * (participantNum + 1 - (participantAllNums + 1) / 2) // ウィンドウを中央揃えにする
+        0
+        // (windowMax + 50) * ((participantNum - 2) + 1 - ((participantAllNums- 1) + 1) / 2) // ウィンドウを中央揃えにする
       }px`,
       border: `10px solid rgba(${windowInfo?.borderRed}, ${windowInfo?.borderGreen}, ${windowInfo?.borderBlue}, ${windowInfo.borderAlpha})`,
     };

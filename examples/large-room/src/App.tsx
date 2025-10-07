@@ -42,15 +42,17 @@ import { Video } from './Video'; // 修正されたVideoコンポーネント
 // --- Constant Valuale ---
 const AppConstants = {
   MOVING_AVERAGE_FRAME: 10, // 移動平均計算時のフレーム数
-  WIDTH_MAX: 400, // ビデオウィンドウの大きさの最大値
-  WIDTH_MIN: 200, // ビデオウィンドウの大きさの最小値
+  WIDTH_MAX: window.screen.width, // ビデオウィンドウの大きさの最大値
+  WIDTH_MIN: window.screen.width * 0.8, // ビデオウィンドウの大きさの最小値
+  HEIGHT_MAX: window.screen.height, // ビデオウィンドウの大きさの最大値
+  HEIGHT_MIN: window.screen.height * 0.8, // ビデオウィンドウの大きさの最小値
   DISTANCE_RATE_MOVE: 10000, // 位置の移動を行う場合の，スクリーンの中心からのずれの拡大率
   DEFAULT_TOP_DIFF: 0, // 位置の移動を行う場合の，スクリーンの中心からの上下方向のずれ
   DEFAULT_LEFT_DIFF: 0, // 位置の移動を行う場合の，スクリーンの中心からの左右方向のずれ
   BORDER_ALPHA_MIN: 0, // ビデオウィンドウの枠の色の透明度の最小値
   BORDER_ALPHA_MAX: 1, // ビデオウィンドウの枠の色の透明度の最大値
   BORDER_ALPHA_MIN_THRESHOLD: 0.015, // ビデオウィンドウの枠の色を完全に透明にする時の閾値
-  DEFAULT_MY_WINDOW_WIDTH: 250, // 自分自身のビデオウィンドウの大きさのデフォルト値
+  // DEFAULT_MY_WINDOW_WIDTH: 250, // 自分自身のビデオウィンドウの大きさのデフォルト値
   VOLUME_THRESHOLD: 10, // 発話と判定するボリュームの閾値（0-255，要調整）
   SPEAKING_DEBOUNCE_MS: 200, // 発話開始/終了の判定を安定させるためのデバウンス時間
   BORDER_COLORS: {
@@ -59,8 +61,10 @@ const AppConstants = {
     RED: { r: 255, g: 0, b: 0, a: 0 }, // ビデオウィンドウの枠の色（赤色）
   },
 };
-const defaultWidth = (AppConstants.WIDTH_MAX + AppConstants.WIDTH_MIN) / 2; // ビデオウィンドウの大きさのデフォルト値（参加者・対話相手共通）
+const defaultWidth = (AppConstants.WIDTH_MAX + AppConstants.WIDTH_MIN) / 2; // ビデオウィンドウの幅のデフォルト値（参加者・対話相手共通）
+const defaultHeight = (AppConstants.HEIGHT_MAX + AppConstants.HEIGHT_MIN) / 2; // ビデオウィンドウの高さのデフォルト値（参加者・対話相手共通）
 const defaultBorderColor = AppConstants.BORDER_COLORS.GREEN; // ビデオウィンドウの枠の色のデフォルト値（参加者・対話相手共通）
+const scrollMyX = window.scrollX; // 自分自身（参加者側）のスクロール位置（X座標）
 
 // --- Interfaces ---
 interface WindowAndAudioAndParticipantsInfo {
@@ -74,7 +78,8 @@ interface WindowAndAudioAndParticipantsInfo {
   borderAlpha: number; // ビデオウィンドウの枠の色の透明度の値
   borderAlphaValueBasedVoice: number; // 発話タイミングに基づく，枠の色の透明度変化を表す値（自分自身用）
   theta: number; // 頭部方向（度）
-  widthInCaseOfChange: number; // ビデオウィンドウの大きさを変更した場合の大きさ
+  widthInCaseOfChange: number; // ビデオウィンドウの幅を変更した場合の幅
+  heightInCaseOfChange: number; // ビデオウィンドウの大きさを変更した場合の大きさ
   isSpeaking: boolean; // 発言者か否か
   transcript: string; // 発言内容
   gazeStatus: string; // 参加者の状態（注視状態 or 視線回避状態 or ノーマル）
@@ -87,6 +92,7 @@ interface CSV_HeadDirection_Info {
   myTheta: number;
   myDirection: string;
   myWindowWidth: number;
+  myWindowHeight: number;
   myStatusGaze: string;
   myIsSpeaking: boolean;
   myTranscript: string;
@@ -138,8 +144,10 @@ let participantID = 1; // 参加者ID
 let conditionID = 1; // 条件番号・条件名
 let conditionName = 'Baseline'; // 条件名
 let startTime = 0; // 計測開始時間
+let videoSubscriptionsLength = 0;
 // const scrollMyX = window.scrollX; // 自分自身（参加者側）のスクロール位置（X座標）
-const moveWidths: number[] = []; // ビデオウィンドウの大きさの移動平均を計算するためのリスト
+const moveWidths: number[] = []; // ビデオウィンドウの幅の移動平均を計算するためのリスト
+const moveHeights: number[] = []; // ビデオウィンドウの高さの移動平均を計算するためのリスト
 const moveBorderAlphas: number[] = []; // ビデオウィンドウの枠の色の透明度の移動平均を計算するためのリスト
 const isSpeaking = false; // 発話状態か否か
 const borderAlphaValueBasedVoice = AppConstants.BORDER_ALPHA_MIN; // 発話タイミングに基づく，枠の色の透明度変化を表す値
@@ -157,6 +165,8 @@ const App: FC = () => {
   const [videoSubscriptions, setVideoSubscriptions] = useState<
     RoomSubscription<RemoteVideoStream>[]
   >([]);
+  // const [videoSubscriptionsLength, setVideoSubscriptionsLength] =
+  //   useState<number>(0);
   const [
     myWindowAndAudioAndParticipantsInfo,
     setMyWindowAndAudioAndParticipantsInfo,
@@ -171,6 +181,7 @@ const App: FC = () => {
     borderAlpha: defaultBorderColor.a,
     borderAlphaValueBasedVoice: borderAlphaValueBasedVoice,
     widthInCaseOfChange: 0,
+    heightInCaseOfChange: 0,
     theta: 0,
     isSpeaking: false,
     transcript: '',
@@ -208,10 +219,36 @@ const App: FC = () => {
   const myWindowAndAudioContainerStyle = useMemo<React.CSSProperties>(
     () => ({
       position: 'absolute',
-      top: 50, // 文字入力欄に被らないように調整
-      left: 0, // 右上の場合：0（右下の場合：window.innerWidth - AppConstants.DEFAULT_MY_WINDOW_WIDTH - 20）
-      width: AppConstants.DEFAULT_MY_WINDOW_WIDTH,
-      border: `10px solid rgba(${myWindowAndAudioAndParticipantsInfo.borderRed}, ${myWindowAndAudioAndParticipantsInfo.borderGreen}, ${myWindowAndAudioAndParticipantsInfo.borderBlue}, ${myWindowAndAudioAndParticipantsInfo.borderAlphaValueBasedVoice})`,
+      // top: 50, // 文字入力欄に被らないように調整（レイアウト変更前）
+      // left: 0, // 右上の場合：0（右下の場合：window.innerWidth - AppConstants.DEFAULT_MY_WINDOW_WIDTH - 20）（レイアウト変更前）
+      top: `${
+        // レイアウト変更後
+        0 +
+        // window.screen.height / 2 - // ウィンドウを中央揃えにする
+        // ↓：Zoom のギャラリービュー風レイアウト（participantNumは1から，participantNumの1番には自分自身の映るカメラが対応している）
+        window.screen.height /
+          (1 + Math.floor(videoSubscriptionsLength / 2)) /
+          2 -
+        myWindowAndAudioAndParticipantsInfo.height / 2 +
+        myWindowAndAudioAndParticipantsInfo.topDiff
+      }px`,
+      left: `${
+        // レイアウト変更後
+        window.screenLeft +
+        scrollMyX +
+        // window.screen.width / 2 - // ウィンドウを中央揃えにする
+        // ↓：Zoom のギャラリービュー風レイアウト（participantNumは1から，participantNumの1番には自分自身の映るカメラが対応している）
+        (videoSubscriptions.length === 0
+          ? window.screen.width / 2
+          : window.screen.width / 4) -
+        myWindowAndAudioAndParticipantsInfo.width / 2 +
+        myWindowAndAudioAndParticipantsInfo.leftDiff +
+        0
+        // (windowMax + 50) * ((participantNum - 2) + 1 - ((participantAllNums- 1) + 1) / 2) // ウィンドウを中央揃えにする
+      }px`,
+      width: myWindowAndAudioAndParticipantsInfo.width,
+      height: myWindowAndAudioAndParticipantsInfo.height,
+      border: `10px solid rgba(${myWindowAndAudioAndParticipantsInfo.borderRed}, ${myWindowAndAudioAndParticipantsInfo.borderGreen}, ${myWindowAndAudioAndParticipantsInfo.borderBlue}, ${myWindowAndAudioAndParticipantsInfo.borderAlpha})`,
     }),
     [myWindowAndAudioAndParticipantsInfo]
   ); // 参加者側のビデオウィンドウのスタイル
@@ -226,15 +263,19 @@ const App: FC = () => {
       theta_head_direction: number,
       borderAlphaValueBasedVoice: number,
       status: boolean,
-      text: string
+      text: string,
+      videoSubscriptionsLength: number
     ): WindowAndAudioAndParticipantsInfo => {
       //  --- Variables ---
       let next_width_rate = 0; // ウィンドウの大きさの最大値に対する，実際のウィンドウの大きさの比率
       let next_border_a_rate = 0; // ビデオウィンドウの枠の色の透明度の比率
-      let width_value = defaultWidth; // ビデオウィンドウの大きさ
-      let border_a_value = AppConstants.BORDER_ALPHA_MIN; // ビデオウィンドウの枠の色の透明度
-      let myWindowWidthTmpValue = 0; // ビデオウィンドウの大きさ（保存・分析用）
-      let width_value_discrete = AppConstants.WIDTH_MIN; // 離散変化時のビデオウィンドウの大きさ
+      let width_value = 0; // ビデオウィンドウの大きさ
+      let height_value = 0; // ビデオウィンドウの大きさ
+      let border_a_value = 0; // ビデオウィンドウの枠の色の透明度
+      let myWindowWidthTmpValue = 0; // ビデオウィンドウの幅（保存・分析用）
+      let myWindowHeightTmpValue = 0; // ビデオウィンドウの幅（保存・分析用）
+      let width_value_discrete = 0; // 離散変化時のビデオウィンドウの幅
+      let height_value_discrete = 0; // 離散変化時のビデオウィンドウの幅
       let gazeStatus = ''; // 参加者の視線状態（注視状態 or 視線回避状態）
       const top_diff_value =
         AppConstants.DISTANCE_RATE_MOVE *
@@ -245,6 +286,27 @@ const App: FC = () => {
         Utils.norm(fc_d_from_fc_vector) *
         Math.cos(rad_head_direction - Math.PI); // スクリーンの中心からの左右方向のずれ
       let newInfo: WindowAndAudioAndParticipantsInfo; // ビデオウィンドウの情報をまとめたデータ
+      const tmp_WIDTH_MAX =
+        videoSubscriptionsLength === 0
+          ? AppConstants.WIDTH_MAX
+          : AppConstants.WIDTH_MAX / 2;
+      const tmp_WIDTH_MIN =
+        videoSubscriptionsLength === 0
+          ? AppConstants.WIDTH_MIN
+          : AppConstants.WIDTH_MIN / 2;
+      const tmp_defaultWidth =
+        videoSubscriptionsLength === 0 ? defaultWidth : defaultWidth / 2;
+      const tmp_HEIGHT_MAX =
+        AppConstants.HEIGHT_MAX /
+        (1 + Math.floor(videoSubscriptionsLength / 2));
+      const tmp_HEIGHT_MIN =
+        AppConstants.HEIGHT_MIN /
+        (1 + Math.floor(videoSubscriptionsLength / 2));
+      const tmp_defaultHeight =
+        defaultHeight / (1 + Math.floor(videoSubscriptionsLength / 2));
+
+      // eslint-disable-next-line
+      console.log("videoSubscriptionsLength = " + videoSubscriptionsLength);
 
       // ウィンドウの大きさ・ビデオウィンドウの枠の色の透明度の計算
       if (150 * Utils.norm(fc_d_from_fc_vector) <= 1) {
@@ -254,19 +316,31 @@ const App: FC = () => {
         next_width_rate = 1 / (150 * Utils.norm(fc_d_from_fc_vector));
         next_border_a_rate = 1 / (150 * Utils.norm(fc_d_from_fc_vector));
       }
-      width_value = AppConstants.WIDTH_MAX * next_width_rate;
+      // width_value = AppConstants.WIDTH_MAX * next_width_rate; // レイアウト変更前
+      width_value = tmp_WIDTH_MAX * next_width_rate; // レイアウト変更後
+      height_value = tmp_HEIGHT_MAX * next_width_rate; // レイアウト変更後
       border_a_value = AppConstants.BORDER_ALPHA_MAX * next_border_a_rate;
 
       // ウィンドウの大きさ・ビデオウィンドウの枠の色の透明度が最小値を下回らないようにする
-      if (width_value < AppConstants.WIDTH_MIN)
-        width_value = AppConstants.WIDTH_MIN;
+      // // レイアウト変更前
+      // if (width_value < AppConstants.WIDTH_MIN)
+      //   width_value = AppConstants.WIDTH_MIN;
+      // レイアウト変更後
+      if (width_value < tmp_WIDTH_MIN) {
+        width_value = tmp_WIDTH_MIN;
+      }
+      if (height_value < tmp_HEIGHT_MIN) {
+        height_value = tmp_HEIGHT_MIN;
+      }
       if (border_a_value < AppConstants.BORDER_ALPHA_MIN_THRESHOLD)
         border_a_value = AppConstants.BORDER_ALPHA_MIN;
 
-      myWindowWidthTmpValue = width_value; // ウィンドウサイズの一時保存（大きさを変更しない条件でも分析できるようにするため）
+      myWindowWidthTmpValue = width_value; // ウィンドウ幅の一時保存（大きさを変更しない条件でも分析できるようにするため）
+      myWindowHeightTmpValue = height_value; // ウィンドウサイズの一時保存（大きさを変更しない条件でも分析できるようにするため）
 
       // 移動平均の計算 + リストの肥大化の防止（ビデオウィンドウの大きさ・ビデオウィンドウの枠の色の透明度）
       moveWidths.push(width_value);
+      moveHeights.push(height_value);
       moveBorderAlphas.push(border_a_value);
       if (moveWidths.length < AppConstants.MOVING_AVERAGE_FRAME)
         width_value = Utils.averageValue(moveWidths, 0, moveWidths.length - 1);
@@ -277,6 +351,21 @@ const App: FC = () => {
           moveWidths,
           moveWidths.length - AppConstants.MOVING_AVERAGE_FRAME,
           moveWidths.length - 1
+        );
+      }
+      if (moveHeights.length < AppConstants.MOVING_AVERAGE_FRAME)
+        height_value = Utils.averageValue(
+          moveHeights,
+          0,
+          moveHeights.length - 1
+        );
+      else {
+        if (moveHeights.length > AppConstants.MOVING_AVERAGE_FRAME + 3)
+          moveHeights.shift();
+        height_value = Utils.averageValue(
+          moveHeights,
+          moveHeights.length - AppConstants.MOVING_AVERAGE_FRAME,
+          moveHeights.length - 1
         );
       }
       if (moveBorderAlphas.length < AppConstants.MOVING_AVERAGE_FRAME)
@@ -296,26 +385,51 @@ const App: FC = () => {
       }
 
       // 離散変化時のビデオウィンドウの大きさの計算
+      // // レイアウト変更前
+      // if (
+      //   width_value >
+      //   AppConstants.WIDTH_MAX -
+      //     (AppConstants.WIDTH_MAX - AppConstants.WIDTH_MIN) * 0.1
+      // ) {
+      //   width_value_discrete = AppConstants.WIDTH_MAX; // 最大サイズ
+      // } else width_value_discrete = AppConstants.WIDTH_MIN; // 最小サイズ
+      // レイアウト変更後
+      if (width_value > tmp_WIDTH_MAX - (tmp_WIDTH_MAX - tmp_WIDTH_MIN) * 0.1) {
+        width_value_discrete = tmp_WIDTH_MAX; // 最大幅
+      } else width_value_discrete = tmp_WIDTH_MIN; // 最小幅
       if (
-        width_value >
-        AppConstants.WIDTH_MAX -
-          (AppConstants.WIDTH_MAX - AppConstants.WIDTH_MIN) * 0.1
+        height_value >
+        tmp_HEIGHT_MAX - (tmp_HEIGHT_MAX - tmp_HEIGHT_MIN) * 0.1
       ) {
-        width_value_discrete = AppConstants.WIDTH_MAX; // 最大サイズ
-      } else width_value_discrete = AppConstants.WIDTH_MIN; // 最小サイズ
+        height_value_discrete = tmp_HEIGHT_MAX; // 最大サイズ
+      } else height_value_discrete = tmp_HEIGHT_MIN; // 最小サイズ
 
       // 参加者の視線状態（注視状態 or 視線回避状態）の算出
+      // // レイアウト変更前
+      // if (
+      //   myWindowWidthTmpValue >
+      //   AppConstants.WIDTH_MAX -
+      //     (AppConstants.WIDTH_MAX - AppConstants.WIDTH_MIN) * 0.1
+      // ) {
+      //   gazeStatus = 'mutual gaze';
+      // } // ビデオウィンドウの大きさが最大値の10%以内の時には，注視状態であると判断する
+      // if (
+      //   myWindowWidthTmpValue <
+      //   AppConstants.WIDTH_MIN +
+      //     (AppConstants.WIDTH_MAX - AppConstants.WIDTH_MIN) * 0.1
+      // ) {
+      //   gazeStatus = 'gaze aversion';
+      // } // ビデオウィンドウの大きさが最小値の10%以内の時には，視線回避状態であると判断する
+      // レイアウト変更後
       if (
         myWindowWidthTmpValue >
-        AppConstants.WIDTH_MAX -
-          (AppConstants.WIDTH_MAX - AppConstants.WIDTH_MIN) * 0.1
+        tmp_WIDTH_MAX - (tmp_WIDTH_MAX - tmp_WIDTH_MIN) * 0.1
       ) {
         gazeStatus = 'mutual gaze';
       } // ビデオウィンドウの大きさが最大値の10%以内の時には，注視状態であると判断する
       if (
         myWindowWidthTmpValue <
-        AppConstants.WIDTH_MIN +
-          (AppConstants.WIDTH_MAX - AppConstants.WIDTH_MIN) * 0.1
+        tmp_WIDTH_MIN + (tmp_WIDTH_MAX - tmp_WIDTH_MIN) * 0.1
       ) {
         gazeStatus = 'gaze aversion';
       } // ビデオウィンドウの大きさが最小値の10%以内の時には，視線回避状態であると判断する
@@ -327,6 +441,7 @@ const App: FC = () => {
         borderBlue: defaultBorderColor.b,
         borderAlphaValueBasedVoice: borderAlphaValueBasedVoice,
         widthInCaseOfChange: myWindowWidthTmpValue,
+        heightInCaseOfChange: myWindowHeightTmpValue,
         theta: theta_head_direction,
         isSpeaking: status,
         transcript: text,
@@ -339,8 +454,12 @@ const App: FC = () => {
             ...baseInfo,
             topDiff: AppConstants.DEFAULT_TOP_DIFF,
             leftDiff: AppConstants.DEFAULT_LEFT_DIFF,
-            width: defaultWidth,
-            height: defaultWidth,
+            // // レイアウト変更前
+            // width: defaultWidth,
+            // height: defaultWidth,
+            // レイアウト変更後
+            width: tmp_defaultWidth,
+            height: tmp_defaultHeight,
             borderAlpha: borderAlphaValueBasedVoice,
           };
           break;
@@ -349,8 +468,12 @@ const App: FC = () => {
             ...baseInfo,
             topDiff: AppConstants.DEFAULT_TOP_DIFF,
             leftDiff: AppConstants.DEFAULT_LEFT_DIFF,
-            width: defaultWidth,
-            height: defaultWidth,
+            // // レイアウト変更前
+            // width: defaultWidth,
+            // height: defaultWidth,
+            // レイアウト変更後
+            width: tmp_defaultWidth,
+            height: tmp_defaultHeight,
             borderAlpha: border_a_value,
           };
           break;
@@ -360,7 +483,7 @@ const App: FC = () => {
             topDiff: AppConstants.DEFAULT_TOP_DIFF,
             leftDiff: AppConstants.DEFAULT_LEFT_DIFF,
             width: width_value,
-            height: width_value,
+            height: height_value,
             borderAlpha: borderAlphaValueBasedVoice,
           };
           break;
@@ -370,7 +493,7 @@ const App: FC = () => {
             topDiff: AppConstants.DEFAULT_TOP_DIFF,
             leftDiff: AppConstants.DEFAULT_LEFT_DIFF,
             width: width_value_discrete,
-            height: width_value_discrete,
+            height: height_value_discrete,
             borderAlpha: borderAlphaValueBasedVoice,
           };
           break;
@@ -379,8 +502,12 @@ const App: FC = () => {
             ...baseInfo,
             topDiff: top_diff_value,
             leftDiff: left_diff_value,
-            width: defaultWidth,
-            height: defaultWidth,
+            // // レイアウト変更前
+            // width: defaultWidth,
+            // height: defaultWidth,
+            // レイアウト変更後
+            width: tmp_defaultWidth,
+            height: tmp_defaultHeight,
             borderAlpha: borderAlphaValueBasedVoice,
           };
           break;
@@ -390,7 +517,7 @@ const App: FC = () => {
             topDiff: top_diff_value,
             leftDiff: left_diff_value,
             width: width_value,
-            height: width_value,
+            height: height_value,
             borderAlpha: borderAlphaValueBasedVoice,
           };
           break;
@@ -399,8 +526,12 @@ const App: FC = () => {
             ...baseInfo,
             topDiff: AppConstants.DEFAULT_TOP_DIFF,
             leftDiff: AppConstants.DEFAULT_LEFT_DIFF,
-            width: defaultWidth,
-            height: defaultWidth,
+            // // レイアウト変更前
+            // width: defaultWidth,
+            // height: defaultWidth,
+            // レイアウト変更後
+            width: tmp_defaultWidth,
+            height: tmp_defaultHeight,
             borderAlpha: borderAlphaValueBasedVoice,
           };
       }
@@ -483,7 +614,8 @@ const App: FC = () => {
           theta_head_direction,
           borderAlphaValueBasedVoice,
           isSpeaking,
-          isSpeaking ? transcript : ''
+          isSpeaking ? transcript : '',
+          videoSubscriptionsLength
         )
       );
     }
@@ -558,7 +690,8 @@ const App: FC = () => {
           theta_head_direction,
           borderAlphaValueBasedVoice,
           isSpeaking,
-          isSpeaking ? transcript : ''
+          isSpeaking ? transcript : '',
+          videoSubscriptionsLength
         )
       );
     }
@@ -574,6 +707,7 @@ const App: FC = () => {
         myTheta: 0,
         myDirection: '',
         myWindowWidth: 0,
+        myWindowHeight: 0,
         myStatusGaze: '',
         myIsSpeaking: false,
         myTranscript: '',
@@ -657,12 +791,13 @@ const App: FC = () => {
 
     // 映像ストリームの購読リストの更新
     member.onSubscriptionListChanged.add(() => {
-      setVideoSubscriptions(
-        member.subscriptions.filter(
-          (subscription): subscription is RoomSubscription<RemoteVideoStream> =>
-            subscription.contentType === 'video'
-        )
+      const subscriptions = member.subscriptions.filter(
+        (subscription): subscription is RoomSubscription<RemoteVideoStream> =>
+          subscription.contentType === 'video'
       );
+      setVideoSubscriptions(subscriptions);
+      console.log('subscriptions.length', subscriptions.length);
+      videoSubscriptionsLength = subscriptions.length;
     });
 
     // // 外部のデータストリームを受信・処理
@@ -858,6 +993,8 @@ const App: FC = () => {
           ),
           myWindowWidth:
             myWindowAndAudioAndParticipantsInfo.widthInCaseOfChange,
+          myWindowHeight:
+            myWindowAndAudioAndParticipantsInfo.heightInCaseOfChange,
           myStatusGaze: myWindowAndAudioAndParticipantsInfo.gazeStatus,
           myIsSpeaking: myWindowAndAudioAndParticipantsInfo.isSpeaking,
           myTranscript: myWindowAndAudioAndParticipantsInfo.transcript,
@@ -1029,8 +1166,8 @@ const App: FC = () => {
             windowInfo={remoteParticipantsInfo.get(
               subscription.publication.publisher.id
             )}
-            participantNum={videoSubscriptions.indexOf(subscription)}
-            participantAllNums={videoSubscriptions.length}
+            participantNum={videoSubscriptions.indexOf(subscription) + 2} // 1番：自分自身の映るカメラ
+            participantAllNums={videoSubscriptions.length + 1} // +1：自分自身の映るカメラを含むため
             windowMax={AppConstants.WIDTH_MAX}
             // me={me}
             // isMe={subscription.publication.publisher.id === me?.id}
