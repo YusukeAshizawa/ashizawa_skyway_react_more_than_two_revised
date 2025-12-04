@@ -13,6 +13,7 @@
   overflow: visible;
   /* display: none; */
   border: 10px solid rgba(255, 255, 255, 0);
+  /* object-fit: cover; */
 }
 
 /* 自分側のウィンドウ（Webカメラ）を非表示 */
@@ -22,6 +23,7 @@
   overflow: visible;
   display: none;
   border: 10px solid rgba(255, 255, 255, 0);
+  /* object-fit: cover; */
 }
 
 /* 相手側のウィンドウの大きさを調整 */
@@ -30,6 +32,7 @@
   max-height: 1080px;  /*ウィンドウの縦幅の最大値*/
   overflow: visible;
   border: 10px solid rgba(255, 255, 255, 0);
+  /* object-fit: cover; */
 }
 
 #webgazerVideoContainer {

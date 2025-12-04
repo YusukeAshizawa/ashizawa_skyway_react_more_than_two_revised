@@ -42,10 +42,10 @@ import { Video } from './Video'; // 修正されたVideoコンポーネント
 // --- Constant Valuale ---
 const AppConstants = {
   MOVING_AVERAGE_FRAME: 10, // 移動平均計算時のフレーム数
-  WIDTH_MAX: window.screen.width, // ビデオウィンドウの大きさの最大値
-  WIDTH_MIN: window.screen.width * 0.8, // ビデオウィンドウの大きさの最小値
-  HEIGHT_MAX: window.screen.height, // ビデオウィンドウの大きさの最大値
-  HEIGHT_MIN: window.screen.height * 0.8, // ビデオウィンドウの大きさの最小値
+  WIDTH_MAX: window.innerWidth, // ビデオウィンドウの大きさの最大値
+  WIDTH_MIN: window.innerWidth * 0.8, // ビデオウィンドウの大きさの最小値
+  HEIGHT_MAX: window.innerHeight, // ビデオウィンドウの大きさの最大値
+  HEIGHT_MIN: window.innerHeight * 0.8, // ビデオウィンドウの大きさの最小値
   DISTANCE_RATE_MOVE: 10000, // 位置の移動を行う場合の，スクリーンの中心からのずれの拡大率
   DEFAULT_TOP_DIFF: 0, // 位置の移動を行う場合の，スクリーンの中心からの上下方向のずれ
   DEFAULT_LEFT_DIFF: 0, // 位置の移動を行う場合の，スクリーンの中心からの左右方向のずれ
@@ -145,12 +145,12 @@ let conditionID = 1; // 条件番号・条件名
 let conditionName = 'Baseline'; // 条件名
 let startTime = 0; // 計測開始時間
 let videoSubscriptionsLength = 0;
-// const scrollMyX = window.scrollX; // 自分自身（参加者側）のスクロール位置（X座標）
 const moveWidths: number[] = []; // ビデオウィンドウの幅の移動平均を計算するためのリスト
 const moveHeights: number[] = []; // ビデオウィンドウの高さの移動平均を計算するためのリスト
 const moveBorderAlphas: number[] = []; // ビデオウィンドウの枠の色の透明度の移動平均を計算するためのリスト
 const isSpeaking = false; // 発話状態か否か
 const borderAlphaValueBasedVoice = AppConstants.BORDER_ALPHA_MIN; // 発話タイミングに基づく，枠の色の透明度変化を表す値
+const gap_between_participants = 20; // 各参加者のビデオウィンドウ間の感覚
 
 // --- Component Logic ---
 const App: FC = () => {
@@ -201,6 +201,7 @@ const App: FC = () => {
   const [startTime_HeadDirection, setStartTime_HeadDirection] =
     useState<number>(0); // ウィンドウ情報収集開始時間
   const [nowTest, setNowTest] = useState<boolean>(false); // ウィンドウ情報収集中か否か
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
 
   // --- Refs ---
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -226,7 +227,7 @@ const App: FC = () => {
         0 +
         // window.screen.height / 2 - // ウィンドウを中央揃えにする
         // ↓：Zoom のギャラリービュー風レイアウト（participantNumは1から，participantNumの1番には自分自身の映るカメラが対応している）
-        window.screen.height /
+        AppConstants.HEIGHT_MAX /
           (1 + Math.floor(videoSubscriptionsLength / 2)) /
           2 -
         myWindowAndAudioAndParticipantsInfo.height / 2 +
@@ -239,15 +240,17 @@ const App: FC = () => {
         // window.screen.width / 2 - // ウィンドウを中央揃えにする
         // ↓：Zoom のギャラリービュー風レイアウト（participantNumは1から，participantNumの1番には自分自身の映るカメラが対応している）
         (videoSubscriptions.length === 0
-          ? window.screen.width / 2
-          : window.screen.width / 4) -
+          ? AppConstants.WIDTH_MAX / 2
+          : AppConstants.WIDTH_MAX / 4) -
         myWindowAndAudioAndParticipantsInfo.width / 2 +
         myWindowAndAudioAndParticipantsInfo.leftDiff +
         0
         // (windowMax + 50) * ((participantNum - 2) + 1 - ((participantAllNums- 1) + 1) / 2) // ウィンドウを中央揃えにする
       }px`,
-      width: myWindowAndAudioAndParticipantsInfo.width,
-      height: myWindowAndAudioAndParticipantsInfo.height,
+      width:
+        myWindowAndAudioAndParticipantsInfo.width - gap_between_participants,
+      height:
+        myWindowAndAudioAndParticipantsInfo.height - gap_between_participants,
       border: `10px solid rgba(${myWindowAndAudioAndParticipantsInfo.borderRed}, ${myWindowAndAudioAndParticipantsInfo.borderGreen}, ${myWindowAndAudioAndParticipantsInfo.borderBlue}, ${myWindowAndAudioAndParticipantsInfo.borderAlpha})`,
     }),
     [myWindowAndAudioAndParticipantsInfo]
@@ -738,6 +741,22 @@ const App: FC = () => {
     const member = await room.join();
     setMe(member);
 
+    // カメラの種類の選択
+    navigator.mediaDevices
+      .getUserMedia({
+        video: { frameRate: 15 },
+      })
+      .then((stream) => {
+        // eslint-disable-next-line
+        console.log(stream);  // デバッグ用
+      })
+      .catch(console.error);
+    const devices_tmp = (
+      await navigator.mediaDevices.enumerateDevices()
+    ).filter((device) => device.label.includes('USB Camera'));
+    console.log(devices_tmp);
+    setDevices(devices_tmp);
+
     // ストリームの生成と公開
     const stream =
       await SkyWayStreamFactory.createMicrophoneAudioAndCameraStream({
@@ -1154,6 +1173,7 @@ const App: FC = () => {
       <Webcam
         id="local-video-webcam"
         ref={webcamRef}
+        videoConstraints={{ deviceId: devices?.[0]?.deviceId }}
         muted
         playsInline
         style={myWindowAndAudioContainerStyle}

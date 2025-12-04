@@ -1,6 +1,18 @@
 import { RemoteVideoStream, RoomSubscription } from '@skyway-sdk/room';
 import { FC, useEffect, useMemo, useRef } from 'react';
 
+// --- Constant Valuale ---
+const AppConstants = {
+  WIDTH_MAX: window.innerWidth, // ビデオウィンドウの大きさの最大値
+  WIDTH_MIN: window.innerWidth * 0.8, // ビデオウィンドウの大きさの最小値
+  HEIGHT_MAX: window.innerHeight, // ビデオウィンドウの大きさの最大値
+  HEIGHT_MIN: window.innerHeight * 0.8, // ビデオウィンドウの大きさの最小値
+};
+
+// --- Global Variables（以下すべてuseStateで管理したいが，やり方が分かっていないので，保留） ---
+const scrollMyX = window.scrollX; // 自分自身（参加者側）のスクロール位置（X座標）
+const gap_between_participants = 20; // 各参加者のビデオウィンドウ間の感覚
+
 interface WindowAndAudioAndParticipantsInfo {
   topDiff: number;
   leftDiff: number;
@@ -17,13 +29,6 @@ interface WindowAndAudioAndParticipantsInfo {
   transcript: string;
   gazeStatus: string;
 }
-
-// --- Global Variables（以下すべてuseStateで管理したいが，やり方が分かっていないので，保留） ---
-const scrollMyX = window.scrollX; // 自分自身（参加者側）のスクロール位置（X座標）
-// const moveWidths: number[] = []; // ビデオウィンドウの大きさの移動平均を計算するためのリスト
-// const moveBorderAlphas: number[] = []; // ビデオウィンドウの枠の色の透明度の移動平均を計算するためのリスト
-// const isSpeaking = false; // 発話状態か否か
-// const borderAlphaValueBasedVoice = AppConstants.BORDER_ALPHA_MIN; // 発話タイミングに基づく，枠の色の透明度変化を表す値
 
 // --- Component Logic ---
 export const Video: FC<{
@@ -68,13 +73,13 @@ export const Video: FC<{
     // windowInfoから動的にスタイル生成
     return {
       position: 'absolute',
-      width: windowInfo?.width,
-      height: windowInfo.height,
+      width: windowInfo?.width - gap_between_participants,
+      height: windowInfo.height - gap_between_participants,
       top: `${
         0 +
         // window.screen.height / 2 - // ウィンドウを中央揃えにする
         // ↓：Zoom のギャラリービュー風レイアウト（participantNumは1から，participantNumの1番には自分自身の映るカメラが対応している）
-        window.screen.height *
+        AppConstants.HEIGHT_MAX *
           (participantNum % 2 === 1
             ? participantNum /
               (1 + Math.floor((participantAllNums - 1) / 2)) /
@@ -91,10 +96,10 @@ export const Video: FC<{
         // window.screen.width / 2 - // ウィンドウを中央揃えにする
         // ↓：Zoom のギャラリービュー風レイアウト（participantNumは1から，participantNumの1番には自分自身の映るカメラが対応している）
         (participantAllNums % 2 === 1 && participantNum === participantAllNums
-          ? window.screen.width / 2
+          ? AppConstants.WIDTH_MAX / 2
           : participantNum % 2 === 1
-          ? window.screen.width / 4
-          : (window.screen.width * 3) / 4) -
+          ? AppConstants.WIDTH_MAX / 4
+          : (AppConstants.WIDTH_MAX * 3) / 4) -
         windowInfo.width / 2 +
         windowInfo.leftDiff +
         0
