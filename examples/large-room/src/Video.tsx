@@ -36,14 +36,7 @@ export const Video: FC<{
   windowInfo?: WindowAndAudioAndParticipantsInfo;
   participantNum: number;
   participantAllNums: number;
-  windowMax: number;
-}> = ({
-  subscription,
-  windowInfo,
-  participantNum,
-  participantAllNums,
-  windowMax,
-}) => {
+}> = ({ subscription, windowInfo, participantNum, participantAllNums }) => {
   // --- Refs ---
   const videoRef = useRef<HTMLVideoElement>(null);
 

@@ -68,6 +68,7 @@ const scrollMyX = window.scrollX; // 自分自身（参加者側）のスクロ�
 
 // --- Interfaces ---
 interface WindowAndAudioAndParticipantsInfo {
+  ID: number;
   topDiff: number; // 位置を移動させる場合の上下方向の変化量
   leftDiff: number; // 位置を移動させる場合の左右方向の変化量
   width: number;
@@ -89,13 +90,13 @@ interface CSV_HeadDirection_Info {
   condition: number;
   startTime: number;
   endTime: number;
-  myTheta: number;
-  myDirection: string;
-  myWindowWidth: number;
-  myWindowHeight: number;
-  myStatusGaze: string;
-  myIsSpeaking: boolean;
-  myTranscript: string;
+  theta: number;
+  direction: string;
+  windowWidth: number;
+  windowHeight: number;
+  statusGaze: string;
+  // isSpeaking: boolean;
+  // transcript: string;
 } // CSVファイルに書き出す頭部方向の情報
 
 // --- Utility Functions ---
@@ -171,6 +172,7 @@ const App: FC = () => {
     myWindowAndAudioAndParticipantsInfo,
     setMyWindowAndAudioAndParticipantsInfo,
   ] = useState<WindowAndAudioAndParticipantsInfo>({
+    ID: -1,
     topDiff: AppConstants.DEFAULT_TOP_DIFF,
     leftDiff: AppConstants.DEFAULT_LEFT_DIFF,
     width: 300,
@@ -439,6 +441,7 @@ const App: FC = () => {
 
       // ビデオウィンドウの情報をまとめたデータの作成
       const baseInfo = {
+        ID: participantID,
         borderRed: defaultBorderColor.r,
         borderGreen: defaultBorderColor.g,
         borderBlue: defaultBorderColor.b,
@@ -703,23 +706,15 @@ const App: FC = () => {
     // 頭部方向の書き出し開始
     setHeadDirectionResults([
       {
-        ID: participantID,
+        ID: -1,
         condition: conditionID,
         startTime: 0,
         endTime: 0,
-        myTheta: 0,
-        myDirection: '',
-        myWindowWidth: 0,
-        myWindowHeight: 0,
-        myStatusGaze: '',
-        myIsSpeaking: false,
-        myTranscript: '',
-        // otherTheta: 0,
-        // otherDirection: '',
-        // otherWindowWidth: 0,
-        // otherStatusGaze: '',
-        // otherIsSpeaking: false,
-        // otherTranscript: '',
+        theta: 0,
+        direction: '',
+        windowWidth: 0,
+        windowHeight: 0,
+        statusGaze: '',
       },
     ]);
     setStartTime_HeadDirection(0);
@@ -1001,31 +996,49 @@ const App: FC = () => {
       if (nowTest) {
         // 自分自身のウィンドウ情報を追加
         const nowTime_HeadDirection = (performance.now() - startTime) / 1000;
-        const currentEntry: CSV_HeadDirection_Info = {
+        const currentmyEntry: CSV_HeadDirection_Info = {
           ID: participantID,
           condition: conditionID,
           startTime: startTime_HeadDirection,
           endTime: nowTime_HeadDirection,
-          myTheta: myWindowAndAudioAndParticipantsInfo.theta,
-          myDirection: Utils.getParticipantDirection(
+          theta: myWindowAndAudioAndParticipantsInfo.theta,
+          direction: Utils.getParticipantDirection(
             myWindowAndAudioAndParticipantsInfo.theta
           ),
-          myWindowWidth:
-            myWindowAndAudioAndParticipantsInfo.widthInCaseOfChange,
-          myWindowHeight:
+          windowWidth: myWindowAndAudioAndParticipantsInfo.widthInCaseOfChange,
+          windowHeight:
             myWindowAndAudioAndParticipantsInfo.heightInCaseOfChange,
-          myStatusGaze: myWindowAndAudioAndParticipantsInfo.gazeStatus,
-          myIsSpeaking: myWindowAndAudioAndParticipantsInfo.isSpeaking,
-          myTranscript: myWindowAndAudioAndParticipantsInfo.transcript,
-          // otherTheta: 0,
-          // otherDirection: '',
-          // otherWindowWidth: 0,
-          // otherStatusGaze: '',
-          // otherIsSpeaking: false,
-          // otherTranscript: '',
+          statusGaze: myWindowAndAudioAndParticipantsInfo.gazeStatus,
         };
+        setHeadDirectionResults((prev) => [...prev, currentmyEntry]);
 
-        setHeadDirectionResults((prev) => [...prev, currentEntry]);
+        videoSubscriptions.map((subscription) => {
+          const remoteParticipantInfo:
+            | WindowAndAudioAndParticipantsInfo
+            | undefined = remoteParticipantsInfo.get(
+            subscription.publication.publisher.id
+          );
+          const currentOtherEntry: CSV_HeadDirection_Info = {
+            ID: remoteParticipantInfo ? remoteParticipantInfo.ID : -1,
+            condition: conditionID,
+            startTime: startTime_HeadDirection,
+            endTime: nowTime_HeadDirection,
+            theta: remoteParticipantInfo ? remoteParticipantInfo.theta : 0,
+            direction: Utils.getParticipantDirection(
+              remoteParticipantInfo ? remoteParticipantInfo.theta : 0
+            ),
+            windowWidth: remoteParticipantInfo
+              ? remoteParticipantInfo.widthInCaseOfChange
+              : 0,
+            windowHeight: remoteParticipantInfo
+              ? remoteParticipantInfo.heightInCaseOfChange
+              : 0,
+            statusGaze: remoteParticipantInfo
+              ? remoteParticipantInfo.gazeStatus
+              : '',
+          };
+          setHeadDirectionResults((prev) => [...prev, currentOtherEntry]);
+        });
 
         // 各リモートユーザのデータを追加
         // let userIndex = 1;
@@ -1135,7 +1148,7 @@ const App: FC = () => {
             <option value="1">Baseline</option>
             <option value="2">FrameChange</option>
             <option value="3">SizeChange</option>
-            <option value="4">SizeChange_Discrete</option>
+            {/* <option value="4">SizeChange_Discrete</option> */}
             {/* <option value="5">PositionChange</option> */}
             {/* <option value="6">PositionAndSizeChange</option> */}
           </select>
@@ -1188,7 +1201,6 @@ const App: FC = () => {
             )}
             participantNum={videoSubscriptions.indexOf(subscription) + 2} // 1番：自分自身の映るカメラ
             participantAllNums={videoSubscriptions.length + 1} // +1：自分自身の映るカメラを含むため
-            windowMax={AppConstants.WIDTH_MAX}
             // me={me}
             // isMe={subscription.publication.publisher.id === me?.id}
             // conditionID={conditionID}
