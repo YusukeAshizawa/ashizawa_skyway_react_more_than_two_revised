@@ -281,6 +281,7 @@ const App: FC = () => {
       let myWindowHeightTmpValue = 0; // ビデオウィンドウの幅（保存・分析用）
       let width_value_discrete = 0; // 離散変化時のビデオウィンドウの幅
       let height_value_discrete = 0; // 離散変化時のビデオウィンドウの幅
+      let border_a_value_discrete = 0; // 離散変化時のビデオウィンドウの枠の色の不透明度
       let gazeStatus = ''; // 参加者の視線状態（注視状態 or 視線回避状態）
       const top_diff_value =
         AppConstants.DISTANCE_RATE_MOVE *
@@ -439,6 +440,15 @@ const App: FC = () => {
         gazeStatus = 'gaze aversion';
       } // ビデオウィンドウの大きさが最小値の10%以内の時には，視線回避状態であると判断する
 
+      // 枠の色を離散変化にする場合
+      if (
+        border_a_value >
+        AppConstants.BORDER_ALPHA_MAX -
+          (AppConstants.BORDER_ALPHA_MAX - AppConstants.BORDER_ALPHA_MIN) * 0.1
+      ) {
+        border_a_value_discrete = AppConstants.BORDER_ALPHA_MAX; // 最大不透明度
+      } else border_a_value_discrete = AppConstants.BORDER_ALPHA_MIN; // 最小不透明度
+
       // ビデオウィンドウの情報をまとめたデータの作成
       const baseInfo = {
         ID: participantID,
@@ -480,7 +490,8 @@ const App: FC = () => {
             // レイアウト変更後
             width: tmp_defaultWidth,
             height: tmp_defaultHeight,
-            borderAlpha: border_a_value,
+            borderAlpha: border_a_value, // 連続変化の場合
+            // borderAlpha: border_a_value_discrete, // 離散変化の場合
           };
           break;
         case 3: // SizeChange条件
@@ -1131,7 +1142,7 @@ const App: FC = () => {
                   conditionName = 'SizeChange';
                   break;
                 case 4:
-                  conditionName = 'SizeChange_Discrete';
+                  conditionName = 'SizeChange';
                   break;
                 case 5:
                   conditionName = 'PositionChange';
@@ -1147,8 +1158,8 @@ const App: FC = () => {
           >
             <option value="1">Baseline</option>
             <option value="2">FrameChange</option>
-            <option value="3">SizeChange</option>
-            {/* <option value="4">SizeChange_Discrete</option> */}
+            {/* <option value="3">SizeChange</option> 連続値 */}
+            <option value="4">SizeChange</option>
             {/* <option value="5">PositionChange</option> */}
             {/* <option value="6">PositionAndSizeChange</option> */}
           </select>

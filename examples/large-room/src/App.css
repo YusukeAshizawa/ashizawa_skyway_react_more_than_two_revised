@@ -10,16 +10,21 @@
 #local-video {
   max-width: 1920px;
   max-height: 1080px;
+  width: 100%;
+  height: 100%;
   overflow: visible;
   /* display: none; */
+  /* display: inline-block; */
+  /* line-height: 0; */
   border: 10px solid rgba(255, 255, 255, 0);
-  /* object-fit: cover; */
 }
 
 /* 自分側のウィンドウ（Webカメラ）を非表示 */
 #local-video-webcam {
   max-width: 1920px;
   max-height: 1080px;
+  width: 100%;
+  height: 100%;
   overflow: visible;
   display: none;
   border: 10px solid rgba(255, 255, 255, 0);
@@ -30,9 +35,13 @@
 #remote-video {
   max-width: 1920px;  /*ウィンドウの横幅の最大値*/
   max-height: 1080px;  /*ウィンドウの縦幅の最大値*/
+  width: 100%;
+  height: 100%;
   overflow: visible;
+  /* display: inline-block; */
+  /* line-height: 0; */
   border: 10px solid rgba(255, 255, 255, 0);
-  /* object-fit: cover; */
+  object-fit: cover;
 }
 
 #webgazerVideoContainer {
