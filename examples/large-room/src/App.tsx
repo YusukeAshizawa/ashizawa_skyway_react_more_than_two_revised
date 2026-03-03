@@ -51,7 +51,7 @@ const AppConstants = {
   DEFAULT_LEFT_DIFF: 0, // 位置の移動を行う場合の，スクリーンの中心からの左右方向のずれ
   BORDER_ALPHA_MIN: 0, // ビデオウィンドウの枠の色の透明度の最小値
   BORDER_ALPHA_MAX: 1, // ビデオウィンドウの枠の色の透明度の最大値
-  BORDER_ALPHA_MIN_THRESHOLD: 0.015, // ビデオウィンドウの枠の色を完全に透明にする時の閾値
+  MIN_THRESHOLD: 0.1, // ビデオウィンドウの大きさ・枠の色の不透明度を最小値にする閾値（(○○_MAX - ○○_MIN) * 0.1）
   // DEFAULT_MY_WINDOW_WIDTH: 250, // 自分自身のビデオウィンドウの大きさのデフォルト値
   VOLUME_THRESHOLD: 10, // 発話と判定するボリュームの閾値（0-255，要調整）
   SPEAKING_DEBOUNCE_MS: 200, // 発話開始/終了の判定を安定させるためのデバウンス時間
@@ -60,6 +60,8 @@ const AppConstants = {
     BLACK: { r: 0, g: 0, b: 0, a: 0 }, // ビデオウィンドウの枠の色（黒色）
     RED: { r: 255, g: 0, b: 0, a: 0 }, // ビデオウィンドウの枠の色（赤色）
   },
+  CHANGE_THRESHOLD_TWOVALUE: 0.5, // FrameChange条件・SizeChange条件における2段階離散変化の閾値（0~1の値を持つ，0：常に視線回避状態，1：ほとんど直視状態（視線回避状態になることもある））
+  CHANGE_THRESHOLD_THREEVALUE: 0.1, // FrameChange条件・SizeChange条件における3段階離散変化の閾値（0~0.5の値を持つ，0：常に直視・視線回避以外の状態，0.5：ほとんど直視 or 視線回避の2値のいずれかの状態（これら以外の状態になることもある））
 };
 const defaultWidth = (AppConstants.WIDTH_MAX + AppConstants.WIDTH_MIN) / 2; // ビデオウィンドウの幅のデフォルト値（参加者・対話相手共通）
 const defaultHeight = (AppConstants.HEIGHT_MAX + AppConstants.HEIGHT_MIN) / 2; // ビデオウィンドウの高さのデフォルト値（参加者・対話相手共通）
@@ -323,22 +325,35 @@ const App: FC = () => {
         next_border_a_rate = 1 / (150 * Utils.norm(fc_d_from_fc_vector));
       }
       // width_value = AppConstants.WIDTH_MAX * next_width_rate; // レイアウト変更前
-      width_value = tmp_WIDTH_MAX * next_width_rate; // レイアウト変更後
-      height_value = tmp_HEIGHT_MAX * next_width_rate; // レイアウト変更後
-      border_a_value = AppConstants.BORDER_ALPHA_MAX * next_border_a_rate;
+      width_value =
+        tmp_WIDTH_MIN + (tmp_WIDTH_MAX - tmp_WIDTH_MIN) * next_width_rate; // レイアウト変更後
+      height_value =
+        tmp_HEIGHT_MIN + (tmp_HEIGHT_MAX - tmp_HEIGHT_MIN) * next_width_rate; // レイアウト変更後
+      border_a_value =
+        AppConstants.BORDER_ALPHA_MIN +
+        (AppConstants.BORDER_ALPHA_MAX - AppConstants.BORDER_ALPHA_MIN) *
+          next_border_a_rate;
 
-      // ウィンドウの大きさ・ビデオウィンドウの枠の色の透明度が最小値を下回らないようにする
+      // ウィンドウの大きさ・ビデオウィンドウの枠の色の透明度が一定値以下になった時には，最小値にする
       // // レイアウト変更前
       // if (width_value < AppConstants.WIDTH_MIN)
       //   width_value = AppConstants.WIDTH_MIN;
       // レイアウト変更後
-      if (width_value < tmp_WIDTH_MIN) {
+      if (
+        width_value <
+        tmp_WIDTH_MIN +
+          (tmp_WIDTH_MAX - tmp_WIDTH_MIN) * AppConstants.MIN_THRESHOLD
+      ) {
         width_value = tmp_WIDTH_MIN;
       }
-      if (height_value < tmp_HEIGHT_MIN) {
+      if (
+        height_value <
+        tmp_HEIGHT_MIN +
+          (tmp_HEIGHT_MAX - tmp_HEIGHT_MIN) * AppConstants.MIN_THRESHOLD
+      ) {
         height_value = tmp_HEIGHT_MIN;
       }
-      if (border_a_value < AppConstants.BORDER_ALPHA_MIN_THRESHOLD)
+      if (border_a_value < AppConstants.MIN_THRESHOLD)
         border_a_value = AppConstants.BORDER_ALPHA_MIN;
 
       myWindowWidthTmpValue = width_value; // ウィンドウ幅の一時保存（大きさを変更しない条件でも分析できるようにするため）
@@ -399,16 +414,85 @@ const App: FC = () => {
       // ) {
       //   width_value_discrete = AppConstants.WIDTH_MAX; // 最大サイズ
       // } else width_value_discrete = AppConstants.WIDTH_MIN; // 最小サイズ
-      // レイアウト変更後
-      if (width_value > tmp_WIDTH_MAX - (tmp_WIDTH_MAX - tmp_WIDTH_MIN) * 0.1) {
+
+      // レイアウト変更後（2段階離散変化）
+      if (
+        width_value >
+        tmp_WIDTH_MAX -
+          (tmp_WIDTH_MAX - tmp_WIDTH_MIN) *
+            AppConstants.CHANGE_THRESHOLD_TWOVALUE
+      ) {
         width_value_discrete = tmp_WIDTH_MAX; // 最大幅
       } else width_value_discrete = tmp_WIDTH_MIN; // 最小幅
       if (
         height_value >
-        tmp_HEIGHT_MAX - (tmp_HEIGHT_MAX - tmp_HEIGHT_MIN) * 0.1
+        tmp_HEIGHT_MAX -
+          (tmp_HEIGHT_MAX - tmp_HEIGHT_MIN) *
+            AppConstants.CHANGE_THRESHOLD_TWOVALUE
       ) {
         height_value_discrete = tmp_HEIGHT_MAX; // 最大サイズ
       } else height_value_discrete = tmp_HEIGHT_MIN; // 最小サイズ
+
+      // // レイアウト変更後（3段階離散変化）
+      // if (
+      //   width_value >
+      //   tmp_WIDTH_MAX -
+      //     (tmp_WIDTH_MAX - tmp_WIDTH_MIN) *
+      //       AppConstants.CHANGE_THRESHOLD_THREEVALUE
+      // ) {
+      //   width_value_discrete = tmp_WIDTH_MAX; // 最大幅
+      // } else if (
+      //   width_value <
+      //   tmp_WIDTH_MIN +
+      //     (tmp_WIDTH_MAX - tmp_WIDTH_MIN) *
+      //       AppConstants.CHANGE_THRESHOLD_THREEVALUE
+      // ) {
+      //   width_value_discrete = tmp_WIDTH_MIN; // 最小幅
+      // } else width_value_discrete = (tmp_WIDTH_MAX + tmp_WIDTH_MIN) / 2; // 最大幅と最小幅の平均
+      // if (
+      //   height_value >
+      //   tmp_HEIGHT_MAX -
+      //     (tmp_HEIGHT_MAX - tmp_HEIGHT_MIN) *
+      //       AppConstants.CHANGE_THRESHOLD_THREEVALUE
+      // ) {
+      //   height_value_discrete = tmp_HEIGHT_MAX; // 最大幅
+      // } else if (
+      //   height_value <
+      //   tmp_HEIGHT_MIN +
+      //     (tmp_HEIGHT_MAX - tmp_HEIGHT_MIN) *
+      //       AppConstants.CHANGE_THRESHOLD_THREEVALUE
+      // ) {
+      //   height_value_discrete = tmp_HEIGHT_MIN; // 最小幅
+      // } else height_value_discrete = (tmp_HEIGHT_MAX + tmp_HEIGHT_MIN) / 2; // 最大幅と最小幅の平均
+
+      // 枠の色を2段階離散変化にする場合
+      if (
+        border_a_value >
+        AppConstants.BORDER_ALPHA_MAX -
+          (AppConstants.BORDER_ALPHA_MAX - AppConstants.BORDER_ALPHA_MIN) *
+            AppConstants.CHANGE_THRESHOLD_TWOVALUE
+      ) {
+        border_a_value_discrete = AppConstants.BORDER_ALPHA_MAX; // 最大不透明度
+      } else border_a_value_discrete = AppConstants.BORDER_ALPHA_MIN; // 最小不透明度
+
+      // // 枠の色を3段階離散変化にする場合
+      // if (
+      //   border_a_value >
+      //   AppConstants.BORDER_ALPHA_MAX -
+      //     (AppConstants.BORDER_ALPHA_MAX - AppConstants.BORDER_ALPHA_MIN) *
+      //       AppConstants.CHANGE_THRESHOLD_THREEVALUE
+      // ) {
+      //   border_a_value_discrete = AppConstants.BORDER_ALPHA_MAX; // 最大不透明度
+      // } else if (
+      //   border_a_value <
+      //   AppConstants.BORDER_ALPHA_MIN +
+      //     (AppConstants.BORDER_ALPHA_MAX - AppConstants.BORDER_ALPHA_MIN) *
+      //       AppConstants.CHANGE_THRESHOLD_THREEVALUE
+      // ) {
+      //   border_a_value_discrete = AppConstants.BORDER_ALPHA_MIN; // 最小不透明度
+      // } else
+      //   border_a_value_discrete =
+      //     (AppConstants.BORDER_ALPHA_MAX + AppConstants.BORDER_ALPHA_MIN) / 2; // 最大不透明度と最小不透明度の平均
 
       // 参加者の視線状態（注視状態 or 視線回避状態）の算出
       // // レイアウト変更前
@@ -426,28 +510,51 @@ const App: FC = () => {
       // ) {
       //   gazeStatus = 'gaze aversion';
       // } // ビデオウィンドウの大きさが最小値の10%以内の時には，視線回避状態であると判断する
-      // レイアウト変更後
+
+      // // レイアウト変更後（連続変化の場合）
+      // if (
+      //   myWindowWidthTmpValue >
+      //   tmp_WIDTH_MAX - (tmp_WIDTH_MAX - tmp_WIDTH_MIN) * 0.1
+      // ) {
+      //   gazeStatus = 'mutual gaze';
+      // } // ビデオウィンドウの大きさが最大値の10%以内の時には，注視状態であると判断する
+      // if (
+      //   myWindowWidthTmpValue <
+      //   tmp_WIDTH_MIN + (tmp_WIDTH_MAX - tmp_WIDTH_MIN) * 0.1
+      // ) {
+      //   gazeStatus = 'gaze aversion';
+      // } // ビデオウィンドウの大きさが最小値の10%以内の時には，視線回避状態であると判断する
+
+      // // レイアウト変更後（2段階離散変化の場合）
       if (
         myWindowWidthTmpValue >
-        tmp_WIDTH_MAX - (tmp_WIDTH_MAX - tmp_WIDTH_MIN) * 0.1
+        tmp_WIDTH_MAX -
+          (tmp_WIDTH_MAX - tmp_WIDTH_MIN) *
+            AppConstants.CHANGE_THRESHOLD_TWOVALUE
       ) {
         gazeStatus = 'mutual gaze';
-      } // ビデオウィンドウの大きさが最大値の10%以内の時には，注視状態であると判断する
-      if (
-        myWindowWidthTmpValue <
-        tmp_WIDTH_MIN + (tmp_WIDTH_MAX - tmp_WIDTH_MIN) * 0.1
-      ) {
+      } // ビデオウィンドウの大きさが最大値に近い時には，注視状態であると判断する
+      else {
         gazeStatus = 'gaze aversion';
-      } // ビデオウィンドウの大きさが最小値の10%以内の時には，視線回避状態であると判断する
+      } // ビデオウィンドウの大きさが最小値に近い時には，視線回避状態であると判断する
 
-      // 枠の色を離散変化にする場合
-      if (
-        border_a_value >
-        AppConstants.BORDER_ALPHA_MAX -
-          (AppConstants.BORDER_ALPHA_MAX - AppConstants.BORDER_ALPHA_MIN) * 0.1
-      ) {
-        border_a_value_discrete = AppConstants.BORDER_ALPHA_MAX; // 最大不透明度
-      } else border_a_value_discrete = AppConstants.BORDER_ALPHA_MIN; // 最小不透明度
+      // // レイアウト変更後（3段階離散変化の場合）
+      // if (
+      //   myWindowWidthTmpValue >
+      //   tmp_WIDTH_MAX -
+      //     (tmp_WIDTH_MAX - tmp_WIDTH_MIN) *
+      //       AppConstants.CHANGE_THRESHOLD_THREEVALUE
+      // ) {
+      //   gazeStatus = 'mutual gaze';
+      // } // ビデオウィンドウの大きさが最大値に近い時には，注視状態であると判断する
+      // if (
+      //   myWindowWidthTmpValue <
+      //   tmp_WIDTH_MIN +
+      //     (tmp_WIDTH_MAX - tmp_WIDTH_MIN) *
+      //       AppConstants.CHANGE_THRESHOLD_THREEVALUE
+      // ) {
+      //   gazeStatus = 'gaze aversion';
+      // } // ビデオウィンドウの大きさが最小値に近い時には，視線回避状態であると判断する
 
       // ビデオウィンドウの情報をまとめたデータの作成
       const baseInfo = {
@@ -490,8 +597,8 @@ const App: FC = () => {
             // レイアウト変更後
             width: tmp_defaultWidth,
             height: tmp_defaultHeight,
-            borderAlpha: border_a_value, // 連続変化の場合
-            // borderAlpha: border_a_value_discrete, // 離散変化の場合
+            // borderAlpha: border_a_value, // 連続変化の場合
+            borderAlpha: border_a_value_discrete, // 離散変化の場合
           };
           break;
         case 3: // SizeChange条件
