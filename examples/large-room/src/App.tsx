@@ -51,7 +51,7 @@ const AppConstants = {
   DEFAULT_LEFT_DIFF: 0, // 位置の移動を行う場合の，スクリーンの中心からの左右方向のずれ
   BORDER_ALPHA_MIN: 0, // ビデオウィンドウの枠の色の透明度の最小値
   BORDER_ALPHA_MAX: 1, // ビデオウィンドウの枠の色の透明度の最大値
-  MIN_THRESHOLD: 0.1, // ビデオウィンドウの大きさ・枠の色の不透明度を最小値にする閾値（(○○_MAX - ○○_MIN) * 0.1）
+  MIN_THRESHOLD: 0.1, // ビデオウィンドウの大きさ・枠の色の不透明度を最小値にする閾値（(○○_MAX - ○○_MIN) * MIN_THRESHOLD）
   // DEFAULT_MY_WINDOW_WIDTH: 250, // 自分自身のビデオウィンドウの大きさのデフォルト値
   VOLUME_THRESHOLD: 10, // 発話と判定するボリュームの閾値（0-255，要調整）
   SPEAKING_DEBOUNCE_MS: 200, // 発話開始/終了の判定を安定させるためのデバウンス時間
@@ -83,6 +83,7 @@ interface WindowAndAudioAndParticipantsInfo {
   theta: number; // 頭部方向（度）
   widthInCaseOfChange: number; // ビデオウィンドウの幅を変更した場合の幅
   heightInCaseOfChange: number; // ビデオウィンドウの大きさを変更した場合の大きさ
+  border_a_InCaseOfChange: number; // ビデオウィンドウの枠の色を変更した場合の不透明度
   isSpeaking: boolean; // 発言者か否か
   transcript: string; // 発言内容
   gazeStatus: string; // 参加者の状態（注視状態 or 視線回避状態 or ノーマル）
@@ -96,6 +97,7 @@ interface CSV_HeadDirection_Info {
   direction: string;
   windowWidth: number;
   windowHeight: number;
+  border_a: number;
   statusGaze: string;
   // isSpeaking: boolean;
   // transcript: string;
@@ -186,6 +188,7 @@ const App: FC = () => {
     borderAlphaValueBasedVoice: borderAlphaValueBasedVoice,
     widthInCaseOfChange: 0,
     heightInCaseOfChange: 0,
+    border_a_InCaseOfChange: 0,
     theta: 0,
     isSpeaking: false,
     transcript: '',
@@ -281,6 +284,7 @@ const App: FC = () => {
       let border_a_value = 0; // ビデオウィンドウの枠の色の透明度
       let myWindowWidthTmpValue = 0; // ビデオウィンドウの幅（保存・分析用）
       let myWindowHeightTmpValue = 0; // ビデオウィンドウの幅（保存・分析用）
+      let myBorder_a_TmpValue = 0; // ビデオウィンドウの枠の色の不透明度（保存・分析用）
       let width_value_discrete = 0; // 離散変化時のビデオウィンドウの幅
       let height_value_discrete = 0; // 離散変化時のビデオウィンドウの幅
       let border_a_value_discrete = 0; // 離散変化時のビデオウィンドウの枠の色の不透明度
@@ -338,26 +342,32 @@ const App: FC = () => {
       // // レイアウト変更前
       // if (width_value < AppConstants.WIDTH_MIN)
       //   width_value = AppConstants.WIDTH_MIN;
-      // レイアウト変更後
-      if (
-        width_value <
-        tmp_WIDTH_MIN +
-          (tmp_WIDTH_MAX - tmp_WIDTH_MIN) * AppConstants.MIN_THRESHOLD
-      ) {
-        width_value = tmp_WIDTH_MIN;
-      }
-      if (
-        height_value <
-        tmp_HEIGHT_MIN +
-          (tmp_HEIGHT_MAX - tmp_HEIGHT_MIN) * AppConstants.MIN_THRESHOLD
-      ) {
-        height_value = tmp_HEIGHT_MIN;
-      }
-      if (border_a_value < AppConstants.MIN_THRESHOLD)
-        border_a_value = AppConstants.BORDER_ALPHA_MIN;
+      // // レイアウト変更後
+      // if (
+      //   width_value <
+      //   tmp_WIDTH_MIN +
+      //     (tmp_WIDTH_MAX - tmp_WIDTH_MIN) * AppConstants.MIN_THRESHOLD
+      // ) {
+      //   width_value = tmp_WIDTH_MIN;
+      // }
+      // if (
+      //   height_value <
+      //   tmp_HEIGHT_MIN +
+      //     (tmp_HEIGHT_MAX - tmp_HEIGHT_MIN) * AppConstants.MIN_THRESHOLD
+      // ) {
+      //   height_value = tmp_HEIGHT_MIN;
+      // }
+      // if (
+      //   border_a_value <
+      //   AppConstants.BORDER_ALPHA_MIN +
+      //     (AppConstants.BORDER_ALPHA_MAX - AppConstants.BORDER_ALPHA_MIN) *
+      //       AppConstants.MIN_THRESHOLD
+      // )
+      //   border_a_value = AppConstants.BORDER_ALPHA_MIN;
 
       myWindowWidthTmpValue = width_value; // ウィンドウ幅の一時保存（大きさを変更しない条件でも分析できるようにするため）
       myWindowHeightTmpValue = height_value; // ウィンドウサイズの一時保存（大きさを変更しない条件でも分析できるようにするため）
+      myBorder_a_TmpValue = border_a_value; // ウィンドウの枠の色の不透明度の一時保存（枠の色を変更しない条件でも分析できるようにするため）
 
       // 移動平均の計算 + リストの肥大化の防止（ビデオウィンドウの大きさ・ビデオウィンドウの枠の色の透明度）
       moveWidths.push(width_value);
@@ -415,25 +425,43 @@ const App: FC = () => {
       //   width_value_discrete = AppConstants.WIDTH_MAX; // 最大サイズ
       // } else width_value_discrete = AppConstants.WIDTH_MIN; // 最小サイズ
 
-      // レイアウト変更後（2段階離散変化）
+      // // レイアウト変更後（2段階離散変化，width_value・height_value基準（大きさ変更の基準・枠の色変更の基準がずれている場合））
+      // if (
+      //   width_value >
+      //   tmp_WIDTH_MAX -
+      //     (tmp_WIDTH_MAX - tmp_WIDTH_MIN) *
+      //       AppConstants.CHANGE_THRESHOLD_TWOVALUE
+      // ) {
+      //   width_value_discrete = tmp_WIDTH_MAX; // 最大幅
+      // } else width_value_discrete = tmp_WIDTH_MIN; // 最小幅
+      // if (
+      //   height_value >
+      //   tmp_HEIGHT_MAX -
+      //     (tmp_HEIGHT_MAX - tmp_HEIGHT_MIN) *
+      //       AppConstants.CHANGE_THRESHOLD_TWOVALUE
+      // ) {
+      //   height_value_discrete = tmp_HEIGHT_MAX; // 最大サイズ
+      // } else height_value_discrete = tmp_HEIGHT_MIN; // 最小サイズ
+
+      // レイアウト変更後（2段階離散変化，border_a_value基準（大きさ変更の基準・枠の色変更の基準を枠の色変更の基準（0-1）に統一する場合））
       if (
-        width_value >
-        tmp_WIDTH_MAX -
-          (tmp_WIDTH_MAX - tmp_WIDTH_MIN) *
+        border_a_value >
+        AppConstants.BORDER_ALPHA_MAX -
+          (AppConstants.BORDER_ALPHA_MAX - AppConstants.BORDER_ALPHA_MIN) *
             AppConstants.CHANGE_THRESHOLD_TWOVALUE
       ) {
         width_value_discrete = tmp_WIDTH_MAX; // 最大幅
       } else width_value_discrete = tmp_WIDTH_MIN; // 最小幅
       if (
-        height_value >
-        tmp_HEIGHT_MAX -
-          (tmp_HEIGHT_MAX - tmp_HEIGHT_MIN) *
+        border_a_value >
+        AppConstants.BORDER_ALPHA_MAX -
+          (AppConstants.BORDER_ALPHA_MAX - AppConstants.BORDER_ALPHA_MIN) *
             AppConstants.CHANGE_THRESHOLD_TWOVALUE
       ) {
         height_value_discrete = tmp_HEIGHT_MAX; // 最大サイズ
       } else height_value_discrete = tmp_HEIGHT_MIN; // 最小サイズ
 
-      // // レイアウト変更後（3段階離散変化）
+      // // レイアウト変更後（3段階離散変化，width_value・height_value基準（大きさ変更の基準・枠の色変更の基準がずれている場合））
       // if (
       //   width_value >
       //   tmp_WIDTH_MAX -
@@ -460,6 +488,38 @@ const App: FC = () => {
       //   height_value <
       //   tmp_HEIGHT_MIN +
       //     (tmp_HEIGHT_MAX - tmp_HEIGHT_MIN) *
+      //       AppConstants.CHANGE_THRESHOLD_THREEVALUE
+      // ) {
+      //   height_value_discrete = tmp_HEIGHT_MIN; // 最小幅
+      // } else height_value_discrete = (tmp_HEIGHT_MAX + tmp_HEIGHT_MIN) / 2; // 最大幅と最小幅の平均
+
+      // // レイアウト変更後（3段階離散変化，border_a_value基準（大きさ変更の基準・枠の色変更の基準を枠の色変更の基準（0-1）に統一する場合））
+      // if (
+      //   border_a_value >
+      //   AppConstants.BORDER_ALPHA_MAX -
+      //     (AppConstants.BORDER_ALPHA_MAX - AppConstants.BORDER_ALPHA_MIN) *
+      //       AppConstants.CHANGE_THRESHOLD_THREEVALUE
+      // ) {
+      //   width_value_discrete = tmp_WIDTH_MAX; // 最大幅
+      // } else if (
+      //   border_a_value <
+      //   AppConstants.BORDER_ALPHA_MIN +
+      //     (AppConstants.BORDER_ALPHA_MAX - AppConstants.BORDER_ALPHA_MIN) *
+      //       AppConstants.CHANGE_THRESHOLD_THREEVALUE
+      // ) {
+      //   width_value_discrete = tmp_WIDTH_MIN; // 最小幅
+      // } else width_value_discrete = (tmp_WIDTH_MAX + tmp_WIDTH_MIN) / 2; // 最大幅と最小幅の平均
+      // if (
+      //   border_a_value >
+      //   AppConstants.BORDER_ALPHA_MAX -
+      //     (AppConstants.BORDER_ALPHA_MAX - AppConstants.BORDER_ALPHA_MIN) *
+      //       AppConstants.CHANGE_THRESHOLD_THREEVALUE
+      // ) {
+      //   height_value_discrete = tmp_HEIGHT_MAX; // 最大幅
+      // } else if (
+      //   border_a_value <
+      //   AppConstants.BORDER_ALPHA_MIN +
+      //     (AppConstants.BORDER_ALPHA_MAX - AppConstants.BORDER_ALPHA_MIN) *
       //       AppConstants.CHANGE_THRESHOLD_THREEVALUE
       // ) {
       //   height_value_discrete = tmp_HEIGHT_MIN; // 最小幅
@@ -511,50 +571,155 @@ const App: FC = () => {
       //   gazeStatus = 'gaze aversion';
       // } // ビデオウィンドウの大きさが最小値の10%以内の時には，視線回避状態であると判断する
 
-      // // レイアウト変更後（連続変化の場合）
+      // // レイアウト変更後（連続変化（大きさ変更の基準・枠の色変更の基準がずれている）の場合）
+      // if (conditionID === 2) {
+      //   // FrameChange条件の場合には，ビデオウィンドウの枠の色の不透明度を基準にする
+      //   if (
+      //     myBorder_a_TmpValue >
+      //     AppConstants.BORDER_ALPHA_MAX -
+      //       (AppConstants.BORDER_ALPHA_MAX - AppConstants.BORDER_ALPHA_MIN) *
+      //         0.1
+      //   ) {
+      //     gazeStatus = 'mutual gaze';
+      //   } // ビデオウィンドウの枠の色の不透明度が最大値の10%以内の時には，注視状態であると判断する
+      //   if (
+      //     myBorder_a_TmpValue <
+      //     AppConstants.BORDER_ALPHA_MIN +
+      //       (AppConstants.BORDER_ALPHA_MAX - AppConstants.BORDER_ALPHA_MIN) *
+      //         0.1
+      //   ) {
+      //     gazeStatus = 'gaze aversion';
+      //   } // ビデオウィンドウの枠の色の不透明度が最小値の10%以内の時には，視線回避状態であると判断する
+      // } else {
+      //   // FrameChange条件以外の条件では，ビデオウィンドウの大きさを基準にする
+      //   if (
+      //     myWindowWidthTmpValue >
+      //     tmp_WIDTH_MAX - (tmp_WIDTH_MAX - tmp_WIDTH_MIN) * 0.1
+      //   ) {
+      //     gazeStatus = 'mutual gaze';
+      //   } // ビデオウィンドウの大きさが最大値の10%以内の時には，注視状態であると判断する
+      //   if (
+      //     myWindowWidthTmpValue <
+      //     tmp_WIDTH_MIN + (tmp_WIDTH_MAX - tmp_WIDTH_MIN) * 0.1
+      //   ) {
+      //     gazeStatus = 'gaze aversion';
+      //   } // ビデオウィンドウの大きさが最小値の10%以内の時には，視線回避状態であると判断する
+      // }
+
+      // // レイアウト変更後（連続変化（大きさ変更の基準・枠の色変更の基準を枠の色変更の基準（0-1）に統一する））の場合）
       // if (
-      //   myWindowWidthTmpValue >
-      //   tmp_WIDTH_MAX - (tmp_WIDTH_MAX - tmp_WIDTH_MIN) * 0.1
+      //   myBorder_a_TmpValue >
+      //   AppConstants.BORDER_ALPHA_MAX -
+      //     (AppConstants.BORDER_ALPHA_MAX - AppConstants.BORDER_ALPHA_MIN) * 0.1
       // ) {
       //   gazeStatus = 'mutual gaze';
-      // } // ビデオウィンドウの大きさが最大値の10%以内の時には，注視状態であると判断する
+      // } // ビデオウィンドウの枠の色の不透明度が最大値の10%以内の時には，注視状態であると判断する
       // if (
-      //   myWindowWidthTmpValue <
-      //   tmp_WIDTH_MIN + (tmp_WIDTH_MAX - tmp_WIDTH_MIN) * 0.1
+      //   myBorder_a_TmpValue <
+      //   AppConstants.BORDER_ALPHA_MIN +
+      //     (AppConstants.BORDER_ALPHA_MAX - AppConstants.BORDER_ALPHA_MIN) * 0.1
       // ) {
       //   gazeStatus = 'gaze aversion';
-      // } // ビデオウィンドウの大きさが最小値の10%以内の時には，視線回避状態であると判断する
+      // } // ビデオウィンドウの枠の色の不透明度が最小値の10%以内の時には，視線回避状態であると判断する
 
-      // // レイアウト変更後（2段階離散変化の場合）
+      // // レイアウト変更後（2段階離散変化（大きさ変更の基準・枠の色変更の基準がずれている）の場合）
+      // if (conditionID === 2) {
+      //   // FrameChange条件の場合には，ビデオウィンドウの枠の色の不透明度を基準にする
+      //   if (
+      //     myBorder_a_TmpValue >
+      //     AppConstants.BORDER_ALPHA_MAX -
+      //       (AppConstants.BORDER_ALPHA_MAX - AppConstants.BORDER_ALPHA_MIN) *
+      //         AppConstants.CHANGE_THRESHOLD_TWOVALUE
+      //   ) {
+      //     gazeStatus = 'mutual gaze';
+      //   } // ビデオウィンドウの枠の色の不透明度が最大値に近い時には，注視状態であると判断する
+      //   else {
+      //     gazeStatus = 'gaze aversion';
+      //   } // ビデオウィンドウの枠の色の不透明度が最小値に近い時には，視線回避状態であると判断する
+      // } else {
+      //   // FrameChange条件以外の条件では，ビデオウィンドウの大きさを基準にする
+      //   if (
+      //     myWindowWidthTmpValue >
+      //     tmp_WIDTH_MAX -
+      //       (tmp_WIDTH_MAX - tmp_WIDTH_MIN) *
+      //         AppConstants.CHANGE_THRESHOLD_TWOVALUE
+      //   ) {
+      //     gazeStatus = 'mutual gaze';
+      //   } // ビデオウィンドウの大きさが最大値に近い時には，注視状態であると判断する
+      //   else {
+      //     gazeStatus = 'gaze aversion';
+      //   } // ビデオウィンドウの大きさが最小値に近い時には，視線回避状態であると判断する
+      // }
+
+      // レイアウト変更後（2段階離散変化（大きさ変更の基準・枠の色変更の基準を枠の色変更の基準（0-1）に統一する）の場合）
       if (
-        myWindowWidthTmpValue >
-        tmp_WIDTH_MAX -
-          (tmp_WIDTH_MAX - tmp_WIDTH_MIN) *
+        myBorder_a_TmpValue >
+        AppConstants.BORDER_ALPHA_MAX -
+          (AppConstants.BORDER_ALPHA_MAX - AppConstants.BORDER_ALPHA_MIN) *
             AppConstants.CHANGE_THRESHOLD_TWOVALUE
       ) {
         gazeStatus = 'mutual gaze';
-      } // ビデオウィンドウの大きさが最大値に近い時には，注視状態であると判断する
+      } // ビデオウィンドウの枠の色の不透明度が最大値に近い時には，注視状態であると判断する
       else {
         gazeStatus = 'gaze aversion';
-      } // ビデオウィンドウの大きさが最小値に近い時には，視線回避状態であると判断する
+      } // ビデオウィンドウの枠の色の不透明度が最小値に近い時には，視線回避状態であると判断する
 
-      // // レイアウト変更後（3段階離散変化の場合）
+      // // レイアウト変更後（3段階離散変化（大きさ変更の基準・枠の色変更の基準がずれている）の場合）
+      // if (conditionID === 2) {
+      //   // FrameChange条件の場合には，ビデオウィンドウの枠の色の不透明度を基準にする
+      //   if (
+      //     myBorder_a_TmpValue >
+      //     AppConstants.BORDER_ALPHA_MAX -
+      //       (AppConstants.BORDER_ALPHA_MAX - AppConstants.BORDER_ALPHA_MIN) *
+      //         AppConstants.CHANGE_THRESHOLD_THREEVALUE
+      //   ) {
+      //     gazeStatus = 'mutual gaze';
+      //   } // ビデオウィンドウの枠の色の不透明度が最大値の(AppConstants.CHANGE_THRESHOLD_THREEVALUE)%以内の時には，注視状態であると判断する
+      //   if (
+      //     myBorder_a_TmpValue <
+      //     AppConstants.BORDER_ALPHA_MIN +
+      //       (AppConstants.BORDER_ALPHA_MAX - AppConstants.BORDER_ALPHA_MIN) *
+      //         AppConstants.CHANGE_THRESHOLD_THREEVALUE
+      //   ) {
+      //     gazeStatus = 'gaze aversion';
+      //   } // ビデオウィンドウの枠の色の不透明度が最小値の(AppConstants.CHANGE_THRESHOLD_THREEVALUE)%以内の時には，注視状態であると判断する
+      // } else {
+      //   // FrameChange条件以外の条件では，ビデオウィンドウの大きさを基準にする
+      //   if (
+      //     myWindowWidthTmpValue >
+      //     tmp_WIDTH_MAX -
+      //       (tmp_WIDTH_MAX - tmp_WIDTH_MIN) *
+      //         AppConstants.CHANGE_THRESHOLD_THREEVALUE
+      //   ) {
+      //     gazeStatus = 'mutual gaze';
+      //   } // ビデオウィンドウの大きさが最大値の(AppConstants.CHANGE_THRESHOLD_THREEVALUE)%以内の時には，注視状態であると判断する
+      //   if (
+      //     myWindowWidthTmpValue <
+      //     tmp_WIDTH_MIN +
+      //       (tmp_WIDTH_MAX - tmp_WIDTH_MIN) *
+      //         AppConstants.CHANGE_THRESHOLD_THREEVALUE
+      //   ) {
+      //     gazeStatus = 'gaze aversion';
+      //   } // ビデオウィンドウの大きさが最小値の(AppConstants.CHANGE_THRESHOLD_THREEVALUE)%以内の時には，注視状態であると判断する
+      // }
+
+      // // レイアウト変更後（3段階離散変化（大きさ変更の基準・枠の色変更の基準を枠の色変更の基準（0-1）に統一する）の場合）
       // if (
-      //   myWindowWidthTmpValue >
-      //   tmp_WIDTH_MAX -
-      //     (tmp_WIDTH_MAX - tmp_WIDTH_MIN) *
+      //   myBorder_a_TmpValue >
+      //   AppConstants.BORDER_ALPHA_MAX -
+      //     (AppConstants.BORDER_ALPHA_MAX - AppConstants.BORDER_ALPHA_MIN) *
       //       AppConstants.CHANGE_THRESHOLD_THREEVALUE
       // ) {
       //   gazeStatus = 'mutual gaze';
-      // } // ビデオウィンドウの大きさが最大値に近い時には，注視状態であると判断する
+      // } // ビデオウィンドウの枠の色の不透明度が最大値の(AppConstants.CHANGE_THRESHOLD_THREEVALUE)%以内の時には，注視状態であると判断する
       // if (
-      //   myWindowWidthTmpValue <
-      //   tmp_WIDTH_MIN +
-      //     (tmp_WIDTH_MAX - tmp_WIDTH_MIN) *
+      //   myBorder_a_TmpValue <
+      //   AppConstants.BORDER_ALPHA_MIN +
+      //     (AppConstants.BORDER_ALPHA_MAX - AppConstants.BORDER_ALPHA_MIN) *
       //       AppConstants.CHANGE_THRESHOLD_THREEVALUE
       // ) {
       //   gazeStatus = 'gaze aversion';
-      // } // ビデオウィンドウの大きさが最小値に近い時には，視線回避状態であると判断する
+      // } // ビデオウィンドウの枠の色の不透明度が最小値の(AppConstants.CHANGE_THRESHOLD_THREEVALUE)%以内の時には，注視状態であると判断する
 
       // ビデオウィンドウの情報をまとめたデータの作成
       const baseInfo = {
@@ -565,6 +730,7 @@ const App: FC = () => {
         borderAlphaValueBasedVoice: borderAlphaValueBasedVoice,
         widthInCaseOfChange: myWindowWidthTmpValue,
         heightInCaseOfChange: myWindowHeightTmpValue,
+        border_a_InCaseOfChange: myBorder_a_TmpValue,
         theta: theta_head_direction,
         isSpeaking: status,
         transcript: text,
@@ -832,6 +998,7 @@ const App: FC = () => {
         direction: '',
         windowWidth: 0,
         windowHeight: 0,
+        border_a: 0,
         statusGaze: '',
       },
     ]);
@@ -1126,6 +1293,7 @@ const App: FC = () => {
           windowWidth: myWindowAndAudioAndParticipantsInfo.widthInCaseOfChange,
           windowHeight:
             myWindowAndAudioAndParticipantsInfo.heightInCaseOfChange,
+          border_a: myWindowAndAudioAndParticipantsInfo.border_a_InCaseOfChange,
           statusGaze: myWindowAndAudioAndParticipantsInfo.gazeStatus,
         };
         setHeadDirectionResults((prev) => [...prev, currentmyEntry]);
@@ -1150,6 +1318,9 @@ const App: FC = () => {
               : 0,
             windowHeight: remoteParticipantInfo
               ? remoteParticipantInfo.heightInCaseOfChange
+              : 0,
+            border_a: remoteParticipantInfo
+              ? remoteParticipantInfo.border_a_InCaseOfChange
               : 0,
             statusGaze: remoteParticipantInfo
               ? remoteParticipantInfo.gazeStatus
