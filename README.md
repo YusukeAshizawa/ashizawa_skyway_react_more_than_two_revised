@@ -11,10 +11,10 @@
 1. 本リポジトリをクローンする
 2. クローンしたリポジトリをVSCodeで開き，VSCode内でターミナルを起動する
 3. ターミナル内で「npm install」コマンドを実行する
-4. ターミナル上にて，本リポジトリ内の「./examples/large-room」に移動した上で，wslを導入する（参考サイト：https://learn.microsoft.com/ja-jp/windows/wsl/install）
+4. ターミナル上にて，本リポジトリ内の「./examples/large-room」に移動した上で，wslを導入する（参考サイト：https://learn.microsoft.com/ja-jp/windows/wsl/install ）
 5. wslを導入出来たら，ターミナル上にて，本リポジトリ内の「./examples/large-room」において「wsl」コマンドを実行する
-6. 5. を行った状態にて，ターミナル上で「npm run dev」コマンドを実行する
-7. 6. を実行すると，プログラムが立ち上がります！
+6. 5.を行った状態にて，ターミナル上で「npm run dev」コマンドを実行する
+7. 6.を実行すると，プログラムが立ち上がります！
 
 ## リモート上で動かしたい場合（Github Pagesを利用する想定）
 
@@ -24,7 +24,7 @@
 3. 数秒～数分待つ
 4. 新規リポジトリが保存されているアカウント（おそらく，自分自身のアカウント？）経由で，新規リポジトリ内の「Settings → Pages」に移動
 5. 「Visit Site」または「https://（新規リポジトリ）」のリンクを選択
-6. 5. を実行すると，プログラムが立ち上がります！
+6. 5.を実行すると，プログラムが立ち上がります！
 
 ## プログラム（ビデオ通話システム）自体の動かし方
 
@@ -42,7 +42,7 @@
 - エラーが発生した場合には，エラーコードを生成AIに聞いたり，検索したりすると解決するかもしれないです．
 - wslを導入していないと，ローカル環境で実行できないです．ご注意ください．
 - 「npm run dev」コマンドを実行する場所と「npm run deploy」コマンドを実行する場所は異なります（前者はwslを実行して立ち上がった仮想環境内，後者は仮想環境外）．ご注意ください．
-- 実験説明書にシステム図が載っているため，参考にしてみてください．（リンク：https://docs.google.com/document/d/1mrBzc0-_iUwYtZYh0qWpYmIbiiR3RJMV/edit?usp=sharing&ouid=108709283499208545233&rtpof=true&sd=true）
+- 実験説明書にシステム図が載っているため，参考にしてみてください．（リンク：https://docs.google.com/document/d/1mrBzc0-_iUwYtZYh0qWpYmIbiiR3RJMV/edit?usp=sharing&ouid=108709283499208545233&rtpof=true&sd=true ）
 - その他気になることがあれば，芦沢に聞いてください．Slackでもメールでも可です．
 
 # 参考情報
